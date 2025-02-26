@@ -1,0 +1,9 @@
+.idea/
+.venv/
+books/
+data/
+__pycache__/
+
+*.pyc
+*.cpython
+.DS_Store
