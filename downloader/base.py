@@ -201,7 +201,7 @@ class BaseBookDownloader(ABC):
         state_file = self.book_dir / "state.json"
         if state_file.exists():
             try:
-                with open(state_file, 'r') as f:
+                with open(state_file, 'r', encoding="utf-8") as f:
                     return json.load(f)
             except json.JSONDecodeError:
                 logging.error("Corrupted state file, initializing fresh state")
@@ -212,7 +212,7 @@ class BaseBookDownloader(ABC):
         """Save current state to file."""
         state_file = self.book_dir / "state.json"
         try:
-            with open(state_file, 'w') as f:
+            with open(state_file, 'w', encoding="utf-8") as f:
                 json.dump(self.state, f, indent=2, ensure_ascii=False)
         except IOError as e:
             logging.error(f"Failed to save state: {str(e)}")

@@ -9,3 +9,5 @@ undetected-chromedriver~=3.5.5
 selenium~=4.28.1
 fake-useragent~=2.0.3
 Brotli~=1.1.0
+PyQT5~=5.15.11
+google.generativeai~=0.8.4
