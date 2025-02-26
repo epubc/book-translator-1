@@ -224,17 +224,21 @@ class ChapterProgressDialog(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
         # Create a scroll area with fixed height
         scroll_area = QScrollArea(self)
         scroll_area.setWidgetResizable(True)
-        scroll_area.setFixedHeight(300)  # Fixed height for the chapter progress area
+        scroll_area.setFixedHeight(300)
 
         scroll_widget = QWidget()
         scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setContentsMargins(5, 5, 5, 5)
+        scroll_layout.setSpacing(10)
 
         # For each chapter, add a horizontal layout with a label and progress bar
         for chapter, info in self.chapter_status.items():
             hlayout = QHBoxLayout()
+            hlayout.setSpacing(10)
             chapter_label = QLabel(chapter)
             chapter_label.setFixedWidth(150)
             progress_bar = QProgressBar()
@@ -271,7 +275,7 @@ class SettingsDialog(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout()
-
+        layout.setContentsMargins(15, 15, 15, 15)
         self.api_key_edit = QLineEdit()
         self.api_key_edit.setPlaceholderText("Enter Gemini API Key")
         self.api_key_edit.setEchoMode(QLineEdit.Password)
@@ -282,6 +286,7 @@ class SettingsDialog(QDialog):
         self.load_settings()
 
         btn_box = QHBoxLayout()
+        btn_box.setSpacing(20)
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.save_settings)
         cancel_btn = QPushButton("Cancel")
@@ -306,18 +311,27 @@ class SettingsDialog(QDialog):
 
 
 ##############################
-# Translation Dialog
+# Translation Dialog (Singleton)
 ##############################
 class TranslationDialog(QDialog):
+    active_instance = None
+
+    @classmethod
+    def get_instance(cls, parent=None):
+        if cls.active_instance is None:
+            cls.active_instance = TranslationDialog(parent)
+        return cls.active_instance
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Translate from URL")
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(600, 500)
         self.thread = None
         self.log_handler = None
         self.current_history_id = None  # Stores the current task's unique id
         self.init_ui()
         self.setup_logging()
+        TranslationDialog.active_instance = self  # Set the singleton instance
 
     def setup_logging(self):
         self.log_handler = QTextEditLogHandler()
@@ -331,6 +345,7 @@ class TranslationDialog(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout()
+        layout.setContentsMargins(15, 15, 15, 15)
 
         # URL Input
         self.url_edit = QLineEdit()
@@ -396,6 +411,7 @@ class TranslationDialog(QDialog):
 
         # New buttons above process log: Chapter Progress and Log Toggle
         progress_buttons_layout = QHBoxLayout()
+        progress_buttons_layout.setSpacing(20)
         self.chapter_progress_btn = QPushButton("Show Chapter Progress")
         self.chapter_progress_btn.clicked.connect(self.show_chapter_progress)
         self.toggle_log_btn = QPushButton("Collapse Log")
@@ -406,6 +422,8 @@ class TranslationDialog(QDialog):
         # Log Display (initially visible)
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
+        self.log_area.setMinimumHeight(100)
+        self.log_area.setFont(QFont("Consolas", 12))
 
         # Buttons for starting/cancelling translation
         self.start_btn = QPushButton("Start Translation")
@@ -414,6 +432,7 @@ class TranslationDialog(QDialog):
         self.cancel_btn.clicked.connect(self.on_cancel)
 
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(20)
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.cancel_btn)
 
@@ -460,6 +479,7 @@ class TranslationDialog(QDialog):
                                 "Please cancel the current translation before closing.")
         else:
             logging.root.removeHandler(self.log_handler)
+            TranslationDialog.active_instance = None  # Clear singleton reference
             super().closeEvent(event)
 
     def choose_directory(self):
@@ -544,6 +564,9 @@ class TranslationDialog(QDialog):
         chapter_status = self.thread.file_handler.get_chapter_status(start_chapter, end_chapter)
         dialog = ChapterProgressDialog(chapter_status, self)
         dialog.exec_()
+        # Activate and bring the parent dialog to the front after closing the chapter progress
+        self.activateWindow()
+        self.raise_()
 
     def toggle_log(self):
         if self.log_area.isVisible():
@@ -599,13 +622,17 @@ class TranslationHistoryDialog(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout()
+        layout.setContentsMargins(15, 15, 15, 15)
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels(["Timestamp", "Book URL", "Model", "Prompt Style",
                                               "Start Chapter", "End Chapter", "Output Directory", "Status"])
         self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet("QTableWidget { background-color: white; alternate-background-color: #f9f9f9; }")
         layout.addWidget(self.table)
 
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(20)
         load_btn = QPushButton("Load Selected Task")
         load_btn.clicked.connect(self.load_selected_task)
         remove_btn = QPushButton("Remove Selected Task")
@@ -663,7 +690,8 @@ class TranslationHistoryDialog(QDialog):
             return
         row = selected_rows[0].row()
         task = self.history_tasks[row]
-        dialog = TranslationDialog(self)
+        # Use the singleton TranslationDialog instance to load the task.
+        dialog = TranslationDialog.get_instance(self)
         dialog.load_task(task)
         dialog.setModal(False)
         dialog.show()
@@ -676,7 +704,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Novel Translator")
-        self.setFixedSize(400, 200)
+        self.resize(500, 300)
         self.init_ui()
         self.load_settings()
         self.setWindowModality(Qt.NonModal)
@@ -684,33 +712,19 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         central_widget = QWidget()
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
 
         title = QLabel("Novel Translator")
-        title.setFont(QFont("Arial", 18, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 22, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
 
-        btn_style = """
-            QPushButton {
-                padding: 15px;
-                font-size: 16px;
-                min-width: 200px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #e0e0e0;
-            }
-        """
-
         translate_btn = QPushButton("Translate from URL")
-        translate_btn.setStyleSheet(btn_style)
         translate_btn.clicked.connect(self.show_translate_dialog)
 
         config_btn = QPushButton("Configuration")
-        config_btn.setStyleSheet(btn_style)
         config_btn.clicked.connect(self.show_settings)
 
         history_btn = QPushButton("Translation History")
-        history_btn.setStyleSheet(btn_style)
         history_btn.clicked.connect(self.show_history_dialog)
 
         layout.addWidget(title)
@@ -724,7 +738,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
     def show_translate_dialog(self):
-        dialog = TranslationDialog(self)
+        dialog = TranslationDialog.get_instance(self)
         dialog.setModal(False)
         dialog.show()
 
@@ -751,6 +765,47 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+    # Global style sheet for a modern and clean look
+    global_stylesheet = """
+    QWidget {
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 14px;
+        color: #333;
+    }
+    QPushButton {
+        background-color: #5cb85c;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+    }
+    QPushButton:hover {
+        background-color: #4cae4c;
+    }
+    QPushButton:pressed {
+        background-color: #449d44;
+    }
+    QLineEdit, QComboBox, QSpinBox, QTextEdit {
+        border: 1px solid #ccc;
+        padding: 5px;
+        border-radius: 4px;
+        background-color: #fff;
+    }
+    QProgressBar {
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        text-align: center;
+    }
+    QProgressBar::chunk {
+        background-color: #5cb85c;
+        width: 10px;
+        margin: 0.5px;
+    }
+    QTableWidget {
+        background-color: #fff;
+    }
+    """
+    app.setStyleSheet(global_stylesheet)
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
