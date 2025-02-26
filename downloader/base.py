@@ -47,6 +47,7 @@ class BaseBookDownloader(ABC):
     """Base class for downloading books from various sources."""
 
     # Class-level default configurations
+    name = ""
     bulk_download = False  # Default to sequential
     concurrent_downloads = 1
     request_delay = 0
@@ -58,7 +59,7 @@ class BaseBookDownloader(ABC):
     def __init__(self, output_dir: Path, url: str):
         self.url = url
         self.book_id = self._extract_book_id(url)
-        self.book_dir = output_dir / f"book_{self.book_id}"
+        self.book_dir = output_dir / f"{self.__class__.name}/book_{self.book_id}"
         self.book_dir.mkdir(parents=True, exist_ok=True)
         self._state_lock = threading.Lock()
 

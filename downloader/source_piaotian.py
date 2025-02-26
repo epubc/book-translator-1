@@ -13,6 +13,7 @@ from translator.text_processing import preprocess_downloaded_text
 @DownloaderFactory.register(domains=["piaotia.com"])
 class PiaotianDownloader(BaseBookDownloader):
 
+    name = "piaotian"
     request_delay = 0.5
     source_language = "Chinese"
     enable_book_info_translation = True

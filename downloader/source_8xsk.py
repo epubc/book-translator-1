@@ -14,6 +14,7 @@ from translator.text_processing import preprocess_downloaded_text
 @DownloaderFactory.register(domains=["8xsk.cc", "8xbook.cc"])
 class EightXSKDownloader(BaseBookDownloader):
 
+    name = "8xsk"
     request_delay = 0.5
     source_language = "Chinese"
     enable_book_info_translation = True
