@@ -49,7 +49,8 @@ def main() -> None:
             start_chapter=start_chapter,
             end_chapter=end_chapter
         )
-        translator.process_translation(start_chapter=start_chapter, end_chapter=end_chapter, prompt_style=args.prompt_style)
+        translator.process_book_translation(prompt_style=args.prompt_style, start_chapter=start_chapter,
+                                            end_chapter=end_chapter)
 
         logging.info("--- Stage 4: Generating EPUB ---")
         epub_path = file_handler.generate_epub(book_info.title, book_info.author)

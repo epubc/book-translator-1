@@ -11,16 +11,19 @@ from google.generativeai import GenerativeModel
 import google.generativeai as genai
 
 from config import settings, prompts
-from config.models import ModelConfig
+from config.models import ModelConfig, DEFAULT_MODEL_CONFIG
+from config.prompts import NAME_PROMPT
 from config.settings import TRANSLATION_INTERVAL_SECONDS
 from translator.file_handler import FileHandler
 from translator.helper import is_in_chapter_range
-from translator.text_processing import clean_filename, normalize_translation, validate_translation_quality
+from translator.text_processing import clean_filename, normalize_translation, validate_translation_quality, \
+    preprocess_raw_text
 
 
 class PromptStyle(Enum):
     Modern = 1
     ChinaFantasy = 2
+    BookInfo = 3
 
 
 @dataclass
@@ -32,7 +35,7 @@ class TranslationTask:
 
 class Translator:
 
-    def __init__(self, model_config: ModelConfig, file_handler: FileHandler, fallback_model_config: Optional[ModelConfig] = None):
+    def __init__(self, model_config: ModelConfig = DEFAULT_MODEL_CONFIG, file_handler: Optional[FileHandler] = None, fallback_model_config: Optional[ModelConfig] = None):
         self._log_handlers = []
         self.model = self._create_model(model_config)
         self.fallback_model = self._create_model(fallback_model_config) if fallback_model_config else None
@@ -52,7 +55,7 @@ class Translator:
         logging.info("Successfully initialized model: %s", model_config.MODEL_NAME)
         return model
 
-    def process_translation(
+    def process_book_translation(
             self,
             prompt_style: PromptStyle = PromptStyle.Modern,
             start_chapter: Optional[int] = None,
@@ -179,21 +182,22 @@ class Translator:
             return
         try:
             retry_count = self._get_retry_count(task.filename, progress_data, retry_lock)
+            raw_text = preprocess_raw_text(task.content, retry_count)
             model = self._select_model(retry_count)
             additional_info = self._get_additional_info()
             translated_text = self._translate(
                 model=model,
-                raw_text=task.content,
-                retry_count=retry_count,
+                raw_text=raw_text,
                 additional_info=additional_info,
                 prompt_style=prompt_style
             )
+            validate_translation_quality(translated_text, retry_count)
             if translated_text:
                 self._handle_translation_success(task, translated_text, progress_data, retry_lock)
             else:
                 self._increase_retry_count(task.filename, progress_data, retry_lock)
         except Exception as e:
-            logging.error("Critical error processing %s: %s", task.filename, str(e))
+            logging.error("Error processing %s: %s", task.filename, str(e))
             self._increase_retry_count(task.filename, progress_data, retry_lock)
 
 
@@ -222,7 +226,9 @@ class Translator:
     def _get_additional_info(self) -> str:
         """Get system instruction for translation context."""
         character_names = self.file_handler.load_and_convert_names_to_string()
-        return character_names
+        if not character_names:
+            return ""
+        return f"{NAME_PROMPT} {character_names}"
 
 
     def _handle_translation_success(self, task: TranslationTask, translated_text: str,
@@ -241,7 +247,6 @@ class Translator:
             self,
             model: GenerativeModel,
             raw_text: str,
-            retry_count: int,
             additional_info: Optional[str] = None,
             prompt_style: PromptStyle = PromptStyle.Modern
     ) -> Optional[str]:
@@ -253,7 +258,6 @@ class Translator:
             if not translated_text:
                 raise ValueError("Empty model response")
 
-            validate_translation_quality(translated_text, retry_count)
             return normalize_translation(translated_text)
 
         except Exception as e:
@@ -271,6 +275,7 @@ class Translator:
         base_prompt = {
             PromptStyle.Modern: prompts.MODERN_PROMPT,
             PromptStyle.ChinaFantasy: prompts.CHINA_FANTASY_PROMPT,
+            PromptStyle.BookInfo: prompts.BOOK_INFO_PROMPT,
         }[PromptStyle(prompt_style)]
 
         if additional_info:
@@ -283,6 +288,11 @@ class Translator:
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(model.generate_content, prompt)
             return future.result(timeout=120)
+
+    def translate_text(self, text: Optional[str], prompt_style: PromptStyle) -> str:
+        if not text:
+            return ""
+        return self._translate(self.model, text, prompt_style=prompt_style)
 
     def stop(self):
         print("Translator stop() called")

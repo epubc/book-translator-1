@@ -19,7 +19,6 @@ SAFETY_SETTINGS = {
 }
 
 
-
 @dataclass
 class ModelConfig:
     MODEL_NAME: str
@@ -27,6 +26,7 @@ class ModelConfig:
     GENERATION_CONFIG: Dict[str, Any]
     SAFETY_SETTINGS: Dict[HarmCategory, HarmBlockThreshold]
 
+DEFAULT_MODEL_CONFIG = ModelConfig("gemini-2.0-flash", 15, GENERATION_CONFIG, SAFETY_SETTINGS)
 
 MODEL_CONFIGS = {
     "gemini-2.0-flash": ModelConfig("gemini-2.0-flash", 15, GENERATION_CONFIG, SAFETY_SETTINGS),

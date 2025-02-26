@@ -15,6 +15,8 @@ from urllib3.util import Retry
 from fake_useragent import UserAgent
 
 from config import settings
+from config.models import get_model_config
+from translator.core import Translator, PromptStyle
 
 
 @dataclass
@@ -49,7 +51,8 @@ class BaseBookDownloader(ABC):
     concurrent_downloads = 1
     request_delay = 0
     source_language = ""
-    should_translate_book_info = False
+    enable_book_info_translation: False
+
 
 
     def __init__(self, output_dir: Path, url: str):
@@ -64,9 +67,10 @@ class BaseBookDownloader(ABC):
         self.concurrent_downloads = self.__class__.concurrent_downloads
         self.request_delay = self.__class__.request_delay
         self.source_language = self.__class__.source_language
-        self.should_translate_book_info = self.__class__.should_translate_book_info
+        self.enable_book_info_translation = self.__class__.enable_book_info_translation
 
         self.session = self._init_requests_session()
+        self.translator = Translator()
 
         # Load state and initialize
         self.state = self._load_state()
@@ -175,6 +179,10 @@ class BaseBookDownloader(ABC):
     def _initialize_book(self):
         """Fetch initial book info and chapter list."""
         self.book_info = self._get_book_info()
+        if self.enable_book_info_translation:
+            self.book_info.title = self.translator.translate_text(self.book_info.title, prompt_style=PromptStyle.BookInfo)
+            self.book_info.author = self.translator.translate_text(self.book_info.author, prompt_style=PromptStyle.BookInfo)
+
         chapter_urls = self._get_chapters()
 
         self._update_state(

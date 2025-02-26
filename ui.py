@@ -167,11 +167,8 @@ class TranslationThread(QThread):
             self.update_progress.emit(75)
             if not self._is_running:
                 return
-            self.translator.process_translation(
-                start_chapter=start_chapter,
-                end_chapter=end_chapter,
-                prompt_style=self.params['prompt_style']
-            )
+            self.translator.process_book_translation(prompt_style=self.params['prompt_style'],
+                                                     start_chapter=start_chapter, end_chapter=end_chapter)
 
             # Stage 4: Generate EPUB
             self.stage_update.emit("Generating EPUB")

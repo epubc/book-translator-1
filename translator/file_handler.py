@@ -298,27 +298,27 @@ class FileHandler:
             logging.warning("No names found to extract.")
 
 
-    def load_and_convert_names_to_string(self) -> str:
+    def load_and_convert_names_to_string(self) -> Optional[str]:
         """Load names from JSON, format to string for instructions."""
         json_path = self.book_dir / "names.json"
         try:
             data = json.loads(json_path.read_text(encoding='utf-8'))
             if not isinstance(data, dict):
                 logging.error(f"JSON file does not contain a dictionary: {json_path}")
-                return ""
+                return
             output_string = ""
             for name, count in data.items():
                 output_string += f"{name} - {count}\n"
             return output_string
         except FileNotFoundError:
             logging.debug(f"File not found: {json_path}")
-            return ""
+            return
         except json.JSONDecodeError:
             logging.error(f"Invalid JSON format in file: {json_path}")
-            return ""
+            return
         except Exception as e:
             logging_utils.log_exception(e, f"Error loading or converting names from JSON: {json_path}")
-            return ""
+            return
 
 
     def generate_epub(self, book_title: str, book_author: str) -> Optional[Path]:

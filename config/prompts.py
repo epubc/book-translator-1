@@ -1,4 +1,3 @@
-import enum
 
 CHINA_FANTASY_PROMPT = """
 Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại Tiên Hiệp và Huyền Huyễn. Nhiệm vụ của bạn là dịch toàn bộ đoạn văn sau từ tiếng Trung sang tiếng Việt, tuân thủ nghiêm ngặt các yêu cầu sau:
@@ -30,10 +29,16 @@ Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại T
 MODERN_PROMPT = '''
 Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại truyện Hiện Đại. Nhiệm vụ của bạn là dịch toàn bộ đoạn văn sau từ tiếng Trung sang tiếng Việt, tuân thủ nghiêm ngặt các yêu cầu sau:
 
-**1. BẢO TOÀN DANH XƯNG:**
-- **Giữ nguyên:** Tất cả tên riêng (nhân vật, công ty, tổ chức...), địa danh, tên thương hiệu, tên sản phẩm, tên đường phố, tên trường học, tên địa điểm cụ thể...
-- **Ví dụ:**  "Tập đoàn Apple", "Đại học Thanh Hoa", "Phố Wall", "iPhone 15", "Starbucks",...
-- **Định dạng:** Đối với tên nhân vật, phải trả về bản Tiếng Việt, **không** trả về dạng pinyin.
+**1. QUY TẮC BẢO TOÀN DANH XƯNG**  
+**Giữ nguyên các loại danh xưng sau:**  
+- **Tên riêng:** Bao gồm tên nhân vật, công ty, tổ chức, địa danh, thương hiệu, sản phẩm, đường phố, trường học, địa điểm cụ thể...  
+- **Ví dụ:** `"Tập đoàn Apple"`, `"Đại học Thanh Hoa"`, `"Phố Wall"`, `"iPhone 15"`, `"Starbucks"`...  
+
+**Quy tắc định dạng khi xử lý tên riêng:**  
+- Nếu tên riêng trong văn bản gốc là **tiếng Trung**, bắt buộc phải dịch sang ngôn ngữ đích (Tiếng Việt, Tiếng Anh hoặc ngôn ngữ khác theo yêu cầu).  
+- Nếu tên riêng có nguồn gốc là **tiếng Anh**, nhưng được viết bằng tiếng Trung trong bản gốc (ví dụ: `"星巴克"`), thì kết quả **phải trả về tiếng Anh** (`"Starbucks"`) thay vì giữ nguyên Hán tự hoặc pinyin.  
+- **Không** giữ nguyên dưới dạng Hán tự hoặc pinyin trong kết quả dịch.
+
 
 **2. PHONG CÁCH NGÔN NGỮ:**
 - **Hiện đại & Thuần Việt:** Ưu tiên tối đa từ thuần Việt, dễ hiểu, tự nhiên trong văn phong hiện đại. Hạn chế Hán Việt trừ khi thông dụng trong giao tiếp hiện đại.
@@ -67,3 +72,6 @@ Giữ nguyên: Tất cả tên riêng (nhân vật, môn phái, tổ chức...),
 Chỉ Nội Dung: Chỉ cung cấp phần văn bản đã dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
 Văn bản:
 """
+
+
+NAME_PROMPT = "Danh sách các tên riêng và số lần xuất hiện ở các bản dịch trước, dựa vào nó khi dịch các tên riêng:"

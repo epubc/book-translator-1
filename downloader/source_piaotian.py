@@ -15,6 +15,7 @@ class PiaotianDownloader(BaseBookDownloader):
 
     request_delay = 0.5
     source_language = "Chinese"
+    enable_book_info_translation = True
 
 
     def _extract_book_id(self, url: str) -> str:
