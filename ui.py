@@ -3,10 +3,13 @@ import sys
 import json
 import uuid
 import datetime
+import re  # Added for regex operations in file handler functions
 from pathlib import Path
+from typing import Optional, Dict
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QComboBox, QSpinBox, QFileDialog,
-                             QDialog, QFormLayout, QTextEdit, QMessageBox, QProgressBar, QTableWidget, QTableWidgetItem)
+                             QDialog, QFormLayout, QTextEdit, QMessageBox, QProgressBar, QTableWidget, QTableWidgetItem,
+                             QScrollArea)
 from PyQt5.QtCore import Qt, QSettings, QThread, pyqtSignal, pyqtSlot, QObject, QStandardPaths
 from PyQt5.QtGui import QFont, QTextCursor
 
@@ -15,6 +18,7 @@ from translator.core import Translator  # And other necessary imports
 from translator.file_handler import FileHandler
 from downloader.factory import DownloaderFactory
 from config.models import get_model_config
+
 
 ##############################
 # History Manager
@@ -80,6 +84,7 @@ class HistoryManager:
             del history[index]
             cls.save_history(history)
 
+
 ##############################
 # Custom Log Handler
 ##############################
@@ -96,6 +101,7 @@ class QTextEditLogHandler(QObject, logging.Handler):
         msg = self.format(record)
         self.log_signal.emit(msg)
 
+
 ##############################
 # Thread Workers
 ##############################
@@ -109,9 +115,9 @@ class TranslationThread(QThread):
         super().__init__()
         self.params = params
         self._is_running = True  # Flag to control execution
-        self.downloader = None   # Store downloader instance
-        self.file_handler = None # Store file_handler instance
-        self.translator = None   # Store translator instance
+        self.downloader = None  # Store downloader instance
+        self.file_handler = None  # Store file_handler instance
+        self.translator = None  # Store translator instance
 
     def run(self):
         try:
@@ -204,6 +210,54 @@ class TranslationThread(QThread):
         else:
             self.update_log.emit("Process stopped cleanly.")
 
+
+##############################
+# Chapter Progress Dialog
+##############################
+class ChapterProgressDialog(QDialog):
+    def __init__(self, chapter_status: Dict[str, Dict[str, any]], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Chapter Translation Progress")
+        self.resize(500, 400)
+        self.chapter_status = chapter_status
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        # Create a scroll area with fixed height
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFixedHeight(300)  # Fixed height for the chapter progress area
+
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+
+        # For each chapter, add a horizontal layout with a label and progress bar
+        for chapter, info in self.chapter_status.items():
+            hlayout = QHBoxLayout()
+            chapter_label = QLabel(chapter)
+            chapter_label.setFixedWidth(150)
+            progress_bar = QProgressBar()
+            progress_value = int(info.get("progress", 0))
+            progress_bar.setValue(progress_value)
+            progress_bar.setFormat(f"{progress_value}%")
+            progress_bar.setToolTip(f"Status: {info.get('status', '')}\n"
+                                    f"Shards: {info.get('translated_shards', 0)} / {info.get('total_shards', 0)}")
+            hlayout.addWidget(chapter_label)
+            hlayout.addWidget(progress_bar)
+            scroll_layout.addLayout(hlayout)
+
+        scroll_widget.setLayout(scroll_layout)
+        scroll_area.setWidget(scroll_widget)
+        layout.addWidget(scroll_area)
+
+        # Close button at the bottom
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn, alignment=Qt.AlignCenter)
+        self.setLayout(layout)
+
+
 ##############################
 # Configuration Dialog
 ##############################
@@ -249,6 +303,7 @@ class SettingsDialog(QDialog):
         settings.setValue("APIKey", self.api_key_edit.text())
         QMessageBox.information(self, "Success", "Settings saved successfully!")
         self.accept()
+
 
 ##############################
 # Translation Dialog
@@ -324,11 +379,6 @@ class TranslationDialog(QDialog):
         progress_layout = QVBoxLayout()
         progress_layout.addWidget(self.stage_label)
         progress_layout.addWidget(self.progress_bar)
-        layout.addLayout(progress_layout)
-
-        # Log Display
-        self.log_area = QTextEdit()
-        self.log_area.setReadOnly(True)
 
         # Form Layout
         form_layout = QFormLayout()
@@ -344,7 +394,20 @@ class TranslationDialog(QDialog):
         output_layout.addWidget(browse_btn)
         form_layout.addRow("Output Directory:", output_layout)
 
-        # Buttons
+        # New buttons above process log: Chapter Progress and Log Toggle
+        progress_buttons_layout = QHBoxLayout()
+        self.chapter_progress_btn = QPushButton("Show Chapter Progress")
+        self.chapter_progress_btn.clicked.connect(self.show_chapter_progress)
+        self.toggle_log_btn = QPushButton("Collapse Log")
+        self.toggle_log_btn.clicked.connect(self.toggle_log)
+        progress_buttons_layout.addWidget(self.chapter_progress_btn)
+        progress_buttons_layout.addWidget(self.toggle_log_btn)
+
+        # Log Display (initially visible)
+        self.log_area = QTextEdit()
+        self.log_area.setReadOnly(True)
+
+        # Buttons for starting/cancelling translation
         self.start_btn = QPushButton("Start Translation")
         self.start_btn.clicked.connect(self.start_translation)
         self.cancel_btn = QPushButton("Cancel")
@@ -354,7 +417,10 @@ class TranslationDialog(QDialog):
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.cancel_btn)
 
+        # Assemble all layouts into main layout
         layout.addLayout(form_layout)
+        layout.addLayout(progress_layout)
+        layout.addLayout(progress_buttons_layout)
         layout.addWidget(QLabel("Progress Log:"))
         layout.addWidget(self.log_area)
         layout.addLayout(btn_layout)
@@ -383,7 +449,7 @@ class TranslationDialog(QDialog):
                 self.thread.stop()
                 self.log_area.append("Translation cancelled by user.")
                 self.start_btn.setEnabled(True)
-                self.accept() # Close the dialog after canceling
+                self.accept()  # Close the dialog after canceling
         else:
             self.reject()
 
@@ -467,6 +533,26 @@ class TranslationDialog(QDialog):
         if self.current_history_id:
             HistoryManager.update_task(self.current_history_id, {"status": final_status})
 
+    def show_chapter_progress(self):
+        # Check if the file handler is available from the running thread
+        if not self.thread or not self.thread.file_handler:
+            QMessageBox.warning(self, "Unavailable", "Chapter progress is not available at this time.")
+            return
+        # Use the same chapter range settings if visible; otherwise, pass None
+        start_chapter = self.start_spin.value() if self.start_spin.isVisible() else None
+        end_chapter = self.end_spin.value() if self.end_spin.isVisible() else None
+        chapter_status = self.thread.file_handler.get_chapter_status(start_chapter, end_chapter)
+        dialog = ChapterProgressDialog(chapter_status, self)
+        dialog.exec_()
+
+    def toggle_log(self):
+        if self.log_area.isVisible():
+            self.log_area.hide()
+            self.toggle_log_btn.setText("Expand Log")
+        else:
+            self.log_area.show()
+            self.toggle_log_btn.setText("Collapse Log")
+
     def load_task(self, task):
         """Load task parameters into the dialog."""
         self.url_edit.setText(task.get("book_url", ""))
@@ -497,6 +583,7 @@ class TranslationDialog(QDialog):
             self.end_spin.hide()
             self.end_spin_label.hide()
         self.output_edit.setText(task.get("output_directory", str(Path.home() / "Downloads")))
+
 
 ##############################
 # Translation History Dialog
@@ -581,6 +668,7 @@ class TranslationHistoryDialog(QDialog):
         dialog.setModal(False)
         dialog.show()
 
+
 ##############################
 # Main Window
 ##############################
@@ -656,6 +744,7 @@ class MainWindow(QMainWindow):
             import os
             os.environ["GEMINI_API_KEY"] = api_key
 
+
 ##############################
 # Application Entry
 ##############################
@@ -665,6 +754,7 @@ def main():
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
     main()

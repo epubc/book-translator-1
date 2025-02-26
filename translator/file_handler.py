@@ -347,3 +347,55 @@ class FileHandler:
         except Exception as e:
             logging_utils.log_exception(e, "EPUB generation failed.")
             return None
+
+    def get_chapter_status(self, start_chapter: Optional[int] = None, end_chapter: Optional[int] = None) -> Dict[
+        str, Dict[str, any]]:
+
+        prompts_dir = self.get_path("prompt_files")
+        responses_dir = self.get_path("translation_responses")
+
+        # Get all prompt files in the specified range
+        prompt_files = [
+            p for p in prompts_dir.glob("*.txt")
+            if is_in_chapter_range(p.name, start_chapter, end_chapter)
+        ]
+
+        # Get all response files in the specified range
+        response_files = [
+            r for r in responses_dir.glob("*.txt")
+            if is_in_chapter_range(r.name, start_chapter, end_chapter)
+        ]
+
+        # Group prompt files by chapter
+        chapter_status = {}
+        for file_path in prompt_files:
+            match = re.match(r"(.*)_\d+\.txt", file_path.name)
+            if match:
+                chapter_name = match.group(1)
+                if chapter_name not in chapter_status:
+                    chapter_status[chapter_name] = {
+                        "total_shards": 0,
+                        "translated_shards": 0,
+                        "status": "Translating",
+                        "progress": 0.0
+                    }
+                chapter_status[chapter_name]["total_shards"] += 1
+
+        # Count translated shards for each chapter
+        for file_path in response_files:
+            match = re.match(r"(.*)_\d+\.txt", file_path.name)
+            if match:
+                chapter_name = match.group(1)
+                if chapter_name in chapter_status:
+                    chapter_status[chapter_name]["translated_shards"] += 1
+
+        # Calculate progress and set status for each chapter
+        for chapter_name, status in chapter_status.items():
+            if status["total_shards"] > 0:
+                status["progress"] = round((status["translated_shards"] / status["total_shards"]) * 100, 1)
+
+                if status["translated_shards"] == status["total_shards"]:
+                    status["status"] = "Translated"
+
+        # Sort chapters for better readability in logs
+        return dict(sorted(chapter_status.items()))

@@ -238,5 +238,5 @@ def preprocess_raw_text(text: str, retry_count: int) -> str:
     if retry_count < 5:
         return text
     text = remove_underscore(text)
-    text = translate_long_text(text, src="zh", dest="en", chunk_size=1024)
+    text = translate_long_text(text, src="zh-CN", dest="en", chunk_size=1024)
     return add_underscore(text)
