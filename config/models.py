@@ -30,7 +30,7 @@ class ModelConfig:
 
 MODEL_CONFIGS = {
     "gemini-2.0-flash": ModelConfig("gemini-2.0-flash", 15, GENERATION_CONFIG, SAFETY_SETTINGS),
-    "gemini-2.0-flash-lite": ModelConfig("gemini-2.0-flash-lite", 30, GENERATION_CONFIG, SAFETY_SETTINGS),
+    "gemini-2.0-flash-lite": ModelConfig("gemini-2.0-flash-lite", 15, GENERATION_CONFIG, SAFETY_SETTINGS),
 }
 
 def get_model_config(model_name: str) -> ModelConfig:

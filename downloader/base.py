@@ -225,13 +225,6 @@ class BaseBookDownloader(ABC):
         """Generate a random user agent for requests."""
         return UserAgent().random
 
-    def stop(self):
-        """
-        Stops the download process.  This method should be called from another thread
-        (like the TranslationThread).
-        """
-        print("EightXSKDownloader stop() called")  # Debugging print
-        self._stop_requested = True
 
     @abstractmethod
     def _extract_book_id(self, url: str) -> str:

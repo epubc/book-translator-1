@@ -32,19 +32,17 @@ class TranslationTask:
 
 class Translator:
 
-    def __init__(self, model_config:ModelConfig, file_handler: FileHandler, fallback_model_config: Optional[ModelConfig] = None):
+    def __init__(self, model_config: ModelConfig, file_handler: FileHandler, fallback_model_config: Optional[ModelConfig] = None):
         self._log_handlers = []
         self.model = self._create_model(model_config)
         self.fallback_model = self._create_model(fallback_model_config) if fallback_model_config else None
         self.batch_size = model_config.BATCH_SIZE
         self.file_handler = file_handler
-
+        self._stop_requested = False  # Cancellation flag
 
     def _create_model(self, model_config: ModelConfig) -> GenerativeModel:
-        """Create and configure a GenerativeModel instance."""
         if not model_config.MODEL_NAME:
             raise ValueError("Model name must be provided")
-
         genai.configure(api_key=settings.get_api_key())
         model = genai.GenerativeModel(
             model_name=model_config.MODEL_NAME,
@@ -60,27 +58,26 @@ class Translator:
             start_chapter: Optional[int] = None,
             end_chapter: Optional[int] = None
     ) -> None:
-        """Orchestrate translation workflow with additional features."""
-
         logging.info("Starting translation process for: %s (chapters %s-%s)",
                      self.file_handler.book_dir, start_chapter or 'begin', end_chapter or 'end')
+        self._stop_requested = False  # Reset cancellation flag before starting
 
-
-        while not self.file_handler.is_translation_complete(start_chapter, end_chapter):
-            futures = self._process_translation_batch(
-                prompt_style,
-                start_chapter,
-                end_chapter
-            )
+        while not self._stop_requested and not self.file_handler.is_translation_complete(start_chapter, end_chapter):
+            futures = self._process_translation_batch(prompt_style, start_chapter, end_chapter)
             concurrent.futures.wait(futures)
+
+            if self._stop_requested:
+                logging.info("Translation process was cancelled by the user.")
+                break
 
             self.file_handler.delete_invalid_translations()
             self.file_handler.extract_and_count_names()
 
-        self.file_handler.combine_chapter_translations()
-
-        logging.info("Translation process completed for: %s", self.file_handler.book_dir)
-
+        if not self._stop_requested:
+            self.file_handler.combine_chapter_translations()
+            logging.info("Translation process completed for: %s", self.file_handler.book_dir)
+        else:
+            logging.info("Translation process stopped before completion.")
 
     def _process_translation_batch(
         self,
@@ -88,13 +85,9 @@ class Translator:
         start_chapter: Optional[int] = None,
         end_chapter: Optional[int] = None
     ) -> List[concurrent.futures.Future]:
-        """Process a batch of translation tasks with rate limiting."""
         executor = ThreadPoolExecutor(max_workers=self.batch_size)
         futures = []
-        tasks = self._prepare_tasks(
-            start_chapter,
-            end_chapter
-        )
+        tasks = self._prepare_tasks(start_chapter, end_chapter)
         if not tasks:
             logging.info("No tasks to process")
             return futures
@@ -104,9 +97,8 @@ class Translator:
         retry_lock = Lock()
 
         batch_index = 0
-        while tasks:
+        while tasks and not self._stop_requested:
             self._enforce_rate_limit(progress_data, len(tasks))
-
             batch_index += 1
             batch, tasks = self._get_batch(tasks, self.batch_size)
             logging.info("Processing batch %d with %d tasks", batch_index, len(batch))
@@ -181,13 +173,14 @@ class Translator:
             retry_lock: Lock,
             prompt_style: PromptStyle
     ) -> None:
-        """Process a single translation task with error handling."""
+        # Check cancellation before processing each task.
+        if self._stop_requested:
+            logging.info("Translation task %s cancelled.", task.filename)
+            return
         try:
             retry_count = self._get_retry_count(task.filename, progress_data, retry_lock)
             model = self._select_model(retry_count)
-
             additional_info = self._get_additional_info()
-
             translated_text = self._translate(
                 model=model,
                 raw_text=task.content,
@@ -195,16 +188,12 @@ class Translator:
                 additional_info=additional_info,
                 prompt_style=prompt_style
             )
-
             if translated_text:
                 self._handle_translation_success(task, translated_text, progress_data, retry_lock)
             else:
-                # Only increase retry count if translation failed
                 self._increase_retry_count(task.filename, progress_data, retry_lock)
-
         except Exception as e:
             logging.error("Critical error processing %s: %s", task.filename, str(e))
-            # Ensure retry count is increased on exceptions too
             self._increase_retry_count(task.filename, progress_data, retry_lock)
 
 

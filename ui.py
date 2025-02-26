@@ -1,10 +1,13 @@
 import logging
 import sys
+import json
+import uuid
+import datetime
 from pathlib import Path
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QComboBox, QSpinBox, QFileDialog,
-                             QDialog, QFormLayout, QTextEdit, QMessageBox, QProgressBar)
-from PyQt5.QtCore import Qt, QSettings, QThread, pyqtSignal, pyqtSlot, QObject
+                             QDialog, QFormLayout, QTextEdit, QMessageBox, QProgressBar, QTableWidget, QTableWidgetItem)
+from PyQt5.QtCore import Qt, QSettings, QThread, pyqtSignal, pyqtSlot, QObject, QStandardPaths
 from PyQt5.QtGui import QFont, QTextCursor
 
 from logger import logging_utils  # Assuming this is your custom logger setup
@@ -13,10 +16,73 @@ from translator.file_handler import FileHandler
 from downloader.factory import DownloaderFactory
 from config.models import get_model_config
 
+##############################
+# History Manager
+##############################
+class HistoryManager:
+    @classmethod
+    def get_history_file(cls):
+        app_data_dir = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
+        app_data_dir.mkdir(parents=True, exist_ok=True)
+        return app_data_dir / "novel_translator_history.json"
 
-# ======================
+    @classmethod
+    def load_history(cls):
+        history_file = cls.get_history_file()
+        if history_file.exists():
+            try:
+                with open(history_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return data
+            except json.JSONDecodeError:
+                return []
+        return []
+
+    @classmethod
+    def save_history(cls, history):
+        history_file = cls.get_history_file()
+        with open(history_file, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=4)
+
+    @classmethod
+    def add_task(cls, task):
+        """
+        If a task with the same book_url already exists, update it.
+        Otherwise, add it as a new task.
+        """
+        history = cls.load_history()
+        for existing in history:
+            if existing.get("book_url") == task.get("book_url"):
+                # Update the existing task with new parameters.
+                existing.update(task)
+                cls.save_history(history)
+                return existing.get("id")
+        # No duplicate found: generate a unique id and add the task.
+        task["id"] = str(uuid.uuid4())
+        history.append(task)
+        cls.save_history(history)
+        return task["id"]
+
+    @classmethod
+    def update_task(cls, task_id, updates):
+        history = cls.load_history()
+        for task in history:
+            if task.get("id") == task_id:
+                task.update(updates)
+                break
+        cls.save_history(history)
+
+    @classmethod
+    def remove_task(cls, index):
+        history = cls.load_history()
+        if 0 <= index < len(history):
+            del history[index]
+            cls.save_history(history)
+
+##############################
 # Custom Log Handler
-# ======================
+##############################
 class QTextEditLogHandler(QObject, logging.Handler):
     log_signal = pyqtSignal(str)
 
@@ -30,10 +96,9 @@ class QTextEditLogHandler(QObject, logging.Handler):
         msg = self.format(record)
         self.log_signal.emit(msg)
 
-
-# ======================
+##############################
 # Thread Workers
-# ======================
+##############################
 class TranslationThread(QThread):
     update_log = pyqtSignal(str)
     update_progress = pyqtSignal(int)
@@ -43,11 +108,10 @@ class TranslationThread(QThread):
     def __init__(self, params):
         super().__init__()
         self.params = params
-        self._is_running = True  # Use a flag to control execution
-        self.downloader = None  # Store downloader instance
+        self._is_running = True  # Flag to control execution
+        self.downloader = None   # Store downloader instance
         self.file_handler = None # Store file_handler instance
-        self.translator = None  # Store translator instance
-
+        self.translator = None   # Store translator instance
 
     def run(self):
         try:
@@ -62,10 +126,10 @@ class TranslationThread(QThread):
 
             self.stage_update.emit("Creating downloader...")
             self.downloader = DownloaderFactory.create_downloader(url=book_url, output_dir=output_dir)
-            if not self._is_running: return  # Check at each major step
+            if not self._is_running:
+                return
             book_info = self.downloader.book_info
             book_dir = self.downloader.book_dir
-
 
             logging_utils.configure_logging(
                 book_dir,
@@ -87,19 +151,22 @@ class TranslationThread(QThread):
             # Stage 1: Download
             self.stage_update.emit("Downloading chapters")
             self.update_progress.emit(25)
-            if not self._is_running: return
-            self.downloader.download_book()  #  download logic.
+            if not self._is_running:
+                return
+            self.downloader.download_book()
 
             # Stage 2: Create prompts
             self.stage_update.emit("Creating prompts")
             self.update_progress.emit(50)
-            if not self._is_running: return
+            if not self._is_running:
+                return
             self.file_handler.create_prompt_files_from_chapters()
 
             # Stage 3: Translate
             self.stage_update.emit("Translating content")
             self.update_progress.emit(75)
-            if not self._is_running: return
+            if not self._is_running:
+                return
             self.translator.process_translation(
                 start_chapter=start_chapter,
                 end_chapter=end_chapter,
@@ -109,59 +176,51 @@ class TranslationThread(QThread):
             # Stage 4: Generate EPUB
             self.stage_update.emit("Generating EPUB")
             self.update_progress.emit(95)
-            if not self._is_running: return
+            if not self._is_running:
+                return
             epub_path = self.file_handler.generate_epub(book_info.title, book_info.author)
             self.update_log.emit(f"EPUB generated at: {epub_path}")
-
 
             self.update_progress.emit(100)
             self.finished.emit(True)
 
         except Exception as e:
-            logging.exception("An error occurred during translation:")  # Use logging.exception
+            logging.exception("An error occurred during translation:")
             self.update_log.emit(f"Error: {e}")
             self.finished.emit(False)
         finally:
-            self._is_running = False  # Ensure flag is reset
-            self.downloader = None  # clean downloader instance
-            self.file_handler = None # clean file_handler instance
-            self.translator = None  # clean translator instance
-
+            self._is_running = False
+            self.downloader = None
+            self.file_handler = None
+            self.translator = None
 
     def stop(self):
-        self._is_running = False  # Signal the thread to stop
-        if self.downloader:
-            self.downloader.stop()  # Stop the downloader, if it exists.
-        if self.file_handler:
-            self.file_handler.stop()
+        self._is_running = False
         if self.translator:
             self.translator.stop()
 
         self.update_log.emit("Stopping process...")
-        self.wait(1000)  # Wait up to 1 second for the thread to finish.
-        if self.isRunning():  # If still running after waiting...
-            self.terminate() # ...forcefully terminate (use as last resort)
+        self.wait(1000)
+        if self.isRunning():
+            self.terminate()
             self.update_log.emit("Process terminated.")
         else:
             self.update_log.emit("Process stopped cleanly.")
 
-
-
-# ======================
-# Configuration Dialogs
-# ======================
+##############################
+# Configuration Dialog
+##############################
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Configuration")
         self.setFixedSize(400, 200)
         self.init_ui()
-        self.setWindowModality(Qt.ApplicationModal)  # Prevent interaction with main window
+        self.setWindowModality(Qt.ApplicationModal)
 
     def init_ui(self):
         layout = QVBoxLayout()
 
-        # API Key Section
         self.api_key_edit = QLineEdit()
         self.api_key_edit.setPlaceholderText("Enter Gemini API Key")
         self.api_key_edit.setEchoMode(QLineEdit.Password)
@@ -169,10 +228,8 @@ class SettingsDialog(QDialog):
         form_layout = QFormLayout()
         form_layout.addRow("Gemini API Key:", self.api_key_edit)
 
-        # Load existing settings
         self.load_settings()
 
-        # Buttons
         btn_box = QHBoxLayout()
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.save_settings)
@@ -196,10 +253,9 @@ class SettingsDialog(QDialog):
         QMessageBox.information(self, "Success", "Settings saved successfully!")
         self.accept()
 
-
-# ======================
+##############################
 # Translation Dialog
-# ======================
+##############################
 class TranslationDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -207,6 +263,7 @@ class TranslationDialog(QDialog):
         self.setMinimumSize(600, 400)
         self.thread = None
         self.log_handler = None
+        self.current_history_id = None  # Stores the current task's unique id
         self.init_ui()
         self.setup_logging()
 
@@ -236,19 +293,18 @@ class TranslationDialog(QDialog):
         self.style_combo.addItem("Modern Style", 1)
         self.style_combo.addItem("China Fantasy Style", 2)
 
-        # Chapter Range - Initially hidden
+        # Chapter Range (initially hidden)
         self.start_spin_label = QLabel("Start Chapter:")
         self.start_spin = QSpinBox()
         self.start_spin.setRange(0, 9999)
-        self.start_spin.setValue(0)  # Default to 0
+        self.start_spin.setValue(0)
         self.start_spin.hide()
         self.start_spin_label.hide()
-
 
         self.end_spin_label = QLabel("End Chapter:")
         self.end_spin = QSpinBox()
         self.end_spin.setRange(0, 9999)
-        self.end_spin.setValue(0)  # Default to 0
+        self.end_spin.setValue(0)
         self.end_spin.hide()
         self.end_spin_label.hide()
 
@@ -257,19 +313,17 @@ class TranslationDialog(QDialog):
         self.chapter_range_btn.setCheckable(True)
         self.chapter_range_btn.clicked.connect(self.toggle_chapter_range)
 
-
         # Output Directory
         self.output_edit = QLineEdit()
         self.output_edit.setText(str(Path.home() / "Downloads"))
         browse_btn = QPushButton("Browse...")
         browse_btn.clicked.connect(self.choose_directory)
 
-        # Progress Bar
+        # Progress Bar and Stage Label
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.stage_label = QLabel("Current Stage: Idle")
 
-        # Progress Section
         progress_layout = QVBoxLayout()
         progress_layout.addWidget(self.stage_label)
         progress_layout.addWidget(self.progress_bar)
@@ -288,8 +342,6 @@ class TranslationDialog(QDialog):
         form_layout.addRow(self.start_spin_label, self.start_spin)
         form_layout.addRow(self.end_spin_label, self.end_spin)
 
-
-        # Output Layout
         output_layout = QHBoxLayout()
         output_layout.addWidget(self.output_edit)
         output_layout.addWidget(browse_btn)
@@ -299,7 +351,7 @@ class TranslationDialog(QDialog):
         self.start_btn = QPushButton("Start Translation")
         self.start_btn.clicked.connect(self.start_translation)
         self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.clicked.connect(self.on_cancel)  # Connect to on_cancel
+        self.cancel_btn.clicked.connect(self.on_cancel)
 
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.start_btn)
@@ -323,7 +375,6 @@ class TranslationDialog(QDialog):
             self.start_spin_label.hide()
             self.end_spin_label.hide()
 
-
     def on_cancel(self):
         if self.thread and self.thread.isRunning():
             reply = QMessageBox.question(
@@ -331,21 +382,21 @@ class TranslationDialog(QDialog):
                 'Are you sure you want to cancel the current translation?',
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No
             )
-
             if reply == QMessageBox.Yes:
-                self.thread.stop()  # Call the stop method
+                self.thread.stop()
                 self.log_area.append("Translation cancelled by user.")
                 self.start_btn.setEnabled(True)
+                self.accept() # Close the dialog after canceling
         else:
-            self.reject()  # Close the dialog if no thread is running
+            self.reject()
 
     def closeEvent(self, event):
         if self.thread and self.thread.isRunning():
-            event.ignore()  # Prevent closing if the thread is active.
+            event.ignore()
             QMessageBox.warning(self, "Operation in Progress",
                                 "Please cancel the current translation before closing.")
         else:
-            logging.root.removeHandler(self.log_handler)  # Remove the handler
+            logging.root.removeHandler(self.log_handler)
             super().closeEvent(event)
 
     def choose_directory(self):
@@ -354,17 +405,16 @@ class TranslationDialog(QDialog):
             self.output_edit.setText(directory)
 
     def start_translation(self):
-        # Get start and end chapter values.  If the boxes are hidden, use None.
+        # Determine chapter values (or use None if not set)
         start_chapter = self.start_spin.value() if self.start_spin.isVisible() else None
         end_chapter = self.end_spin.value() if self.end_spin.isVisible() else None
-
 
         params = {
             'book_url': self.url_edit.text(),
             'model_name': self.model_combo.currentText(),
             'prompt_style': self.style_combo.currentData(),
-            'start_chapter': start_chapter,  # Pass the values (or None)
-            'end_chapter': end_chapter,      # Pass the values (or None)
+            'start_chapter': start_chapter,
+            'end_chapter': end_chapter,
             'output_directory': self.output_edit.text()
         }
 
@@ -372,34 +422,171 @@ class TranslationDialog(QDialog):
             QMessageBox.warning(self, "Warning", "Please enter a valid URL!")
             return
 
+        # Create (or update) a history record based on URL uniqueness.
+        self.current_history_id = HistoryManager.add_task({
+            "timestamp": datetime.datetime.now().isoformat(),
+            "book_url": self.url_edit.text(),
+            "model_name": self.model_combo.currentText(),
+            "prompt_style": self.style_combo.currentText(),
+            "start_chapter": start_chapter,
+            "end_chapter": end_chapter,
+            "output_directory": self.output_edit.text(),
+            "status": "In Progress",
+            "current_stage": "Starting",
+            "progress": 0
+        })
+
         self.thread = TranslationThread(params)
         self.thread.update_log.connect(self.update_log)
         self.thread.finished.connect(self.on_finished)
-        self.thread.stage_update.connect(self.update_stage)
-        self.thread.update_progress.connect(self.progress_bar.setValue)
+        self.thread.stage_update.connect(self.on_stage_update)
+        self.thread.update_progress.connect(self.on_progress_update)
 
         self.start_btn.setEnabled(False)
         self.thread.start()
 
-
     @pyqtSlot(str)
-    def update_stage(self, stage_name):
-        self.stage_label.setText(f"Current Stage: {stage_name}")
+    def on_stage_update(self, stage):
+        self.stage_label.setText(f"Current Stage: {stage}")
+        if self.current_history_id:
+            HistoryManager.update_task(self.current_history_id, {"current_stage": stage})
+
+    @pyqtSlot(int)
+    def on_progress_update(self, progress):
+        self.progress_bar.setValue(progress)
+        if self.current_history_id:
+            HistoryManager.update_task(self.current_history_id, {"progress": progress})
 
     def update_log(self, message):
         self.log_area.append(message)
 
     def on_finished(self, success):
         self.start_btn.setEnabled(True)
+        final_status = "Success" if success else "Error"
         if success:
             QMessageBox.information(self, "Success", "Translation completed successfully!")
         else:
             QMessageBox.warning(self, "Warning", "Translation completed with errors!")
+        if self.current_history_id:
+            HistoryManager.update_task(self.current_history_id, {"status": final_status})
 
+    def load_task(self, task):
+        """Load task parameters into the dialog."""
+        self.url_edit.setText(task.get("book_url", ""))
+        model_name = task.get("model_name", "gemini-2.0-flash")
+        index = self.model_combo.findText(model_name)
+        if index >= 0:
+            self.model_combo.setCurrentIndex(index)
+        prompt_style = task.get("prompt_style", "Modern Style")
+        index = self.style_combo.findText(prompt_style)
+        if index >= 0:
+            self.style_combo.setCurrentIndex(index)
+        start = task.get("start_chapter", None)
+        end = task.get("end_chapter", None)
+        if start is not None:
+            self.start_spin.setValue(int(start))
+            self.start_spin.show()
+            self.start_spin_label.show()
+            self.chapter_range_btn.setChecked(True)
+        else:
+            self.start_spin.hide()
+            self.start_spin_label.hide()
+            self.chapter_range_btn.setChecked(False)
+        if end is not None:
+            self.end_spin.setValue(int(end))
+            self.end_spin.show()
+            self.end_spin_label.show()
+        else:
+            self.end_spin.hide()
+            self.end_spin_label.hide()
+        self.output_edit.setText(task.get("output_directory", str(Path.home() / "Downloads")))
 
-# ======================
+##############################
+# Translation History Dialog
+##############################
+class TranslationHistoryDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Translation History")
+        self.resize(800, 400)
+        self.history_tasks = []  # Will store the loaded tasks.
+        self.init_ui()
+        self.load_history()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+        self.table = QTableWidget(0, 8)
+        self.table.setHorizontalHeaderLabels(["Timestamp", "Book URL", "Model", "Prompt Style",
+                                              "Start Chapter", "End Chapter", "Output Directory", "Status"])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self.table)
+
+        btn_layout = QHBoxLayout()
+        load_btn = QPushButton("Load Selected Task")
+        load_btn.clicked.connect(self.load_selected_task)
+        remove_btn = QPushButton("Remove Selected Task")
+        remove_btn.clicked.connect(self.remove_selected_task)
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.clicked.connect(self.load_history)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.close)
+        btn_layout.addWidget(load_btn)
+        btn_layout.addWidget(remove_btn)
+        btn_layout.addWidget(refresh_btn)
+        btn_layout.addWidget(close_btn)
+        layout.addLayout(btn_layout)
+
+        self.setLayout(layout)
+
+    def load_history(self):
+        history = HistoryManager.load_history()
+        self.history_tasks = history  # Save the loaded tasks.
+        self.table.setRowCount(0)
+        for task in history:
+            rowPosition = self.table.rowCount()
+            self.table.insertRow(rowPosition)
+            timestamp_item = QTableWidgetItem(task.get("timestamp", ""))
+            url_item = QTableWidgetItem(task.get("book_url", ""))
+            model_item = QTableWidgetItem(task.get("model_name", ""))
+            prompt_item = QTableWidgetItem(str(task.get("prompt_style", "")))
+            start_item = QTableWidgetItem(str(task.get("start_chapter", "")))
+            end_item = QTableWidgetItem(str(task.get("end_chapter", "")))
+            output_item = QTableWidgetItem(task.get("output_directory", ""))
+            status_item = QTableWidgetItem(task.get("status", ""))
+            self.table.setItem(rowPosition, 0, timestamp_item)
+            self.table.setItem(rowPosition, 1, url_item)
+            self.table.setItem(rowPosition, 2, model_item)
+            self.table.setItem(rowPosition, 3, prompt_item)
+            self.table.setItem(rowPosition, 4, start_item)
+            self.table.setItem(rowPosition, 5, end_item)
+            self.table.setItem(rowPosition, 6, output_item)
+            self.table.setItem(rowPosition, 7, status_item)
+
+    def remove_selected_task(self):
+        selected_rows = self.table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "No selection", "Please select a task to remove.")
+            return
+        for index in sorted(selected_rows, key=lambda x: x.row(), reverse=True):
+            row = index.row()
+            HistoryManager.remove_task(row)
+        self.load_history()
+
+    def load_selected_task(self):
+        selected_rows = self.table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "No selection", "Please select a task to load.")
+            return
+        row = selected_rows[0].row()
+        task = self.history_tasks[row]
+        dialog = TranslationDialog(self)
+        dialog.load_task(task)
+        dialog.setModal(False)
+        dialog.show()
+
+##############################
 # Main Window
-# ======================
+##############################
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -407,7 +594,7 @@ class MainWindow(QMainWindow):
         self.setFixedSize(400, 200)
         self.init_ui()
         self.load_settings()
-        self.setWindowModality(Qt.NonModal)  # Allow interaction with dialogs
+        self.setWindowModality(Qt.NonModal)
 
     def init_ui(self):
         central_widget = QWidget()
@@ -437,10 +624,15 @@ class MainWindow(QMainWindow):
         config_btn.setStyleSheet(btn_style)
         config_btn.clicked.connect(self.show_settings)
 
+        history_btn = QPushButton("Translation History")
+        history_btn.setStyleSheet(btn_style)
+        history_btn.clicked.connect(self.show_history_dialog)
+
         layout.addWidget(title)
         layout.addStretch()
         layout.addWidget(translate_btn)
         layout.addWidget(config_btn)
+        layout.addWidget(history_btn)
         layout.addStretch()
 
         central_widget.setLayout(layout)
@@ -448,13 +640,17 @@ class MainWindow(QMainWindow):
 
     def show_translate_dialog(self):
         dialog = TranslationDialog(self)
-        dialog.setModal(False)  # Allow keeping the dialog open
+        dialog.setModal(False)
         dialog.show()
 
     def show_settings(self):
         dialog = SettingsDialog(self)
         if dialog.exec_() == QDialog.Accepted:
             self.load_settings()
+
+    def show_history_dialog(self):
+        dialog = TranslationHistoryDialog(self)
+        dialog.exec_()
 
     def load_settings(self):
         settings = QSettings("NovelTranslator", "Config")
@@ -463,18 +659,15 @@ class MainWindow(QMainWindow):
             import os
             os.environ["GEMINI_API_KEY"] = api_key
 
-
-# ======================
+##############################
 # Application Entry
-# ======================
+##############################
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
-
 
 if __name__ == "__main__":
     main()
