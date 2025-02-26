@@ -3,9 +3,10 @@ import sys
 import json
 import uuid
 import datetime
-import re  # Added for regex operations in file handler functions
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict
+
+from PyQt5 import sip
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QComboBox, QSpinBox, QFileDialog,
                              QDialog, QFormLayout, QTextEdit, QMessageBox, QProgressBar, QTableWidget, QTableWidgetItem,
@@ -318,7 +319,7 @@ class TranslationDialog(QDialog):
 
     @classmethod
     def get_instance(cls, parent=None):
-        if cls.active_instance is None:
+        if cls.active_instance is None or sip.isdeleted(cls.active_instance):
             cls.active_instance = TranslationDialog(parent)
         return cls.active_instance
 
@@ -481,6 +482,7 @@ class TranslationDialog(QDialog):
             logging.root.removeHandler(self.log_handler)
             TranslationDialog.active_instance = None  # Clear singleton reference
             super().closeEvent(event)
+            self.deleteLater()  # Ensure the widget is properly deleted
 
     def choose_directory(self):
         directory = QFileDialog.getExistingDirectory(self, "Select Output Directory")

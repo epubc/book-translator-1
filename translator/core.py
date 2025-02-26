@@ -191,11 +191,11 @@ class Translator:
                 additional_info=additional_info,
                 prompt_style=prompt_style
             )
+            if not translated_text:
+                logging.error("Error processing %s", task.filename)
+                return
             validate_translation_quality(translated_text, retry_count)
-            if translated_text:
-                self._handle_translation_success(task, translated_text, progress_data, retry_lock)
-            else:
-                self._increase_retry_count(task.filename, progress_data, retry_lock)
+            self._handle_translation_success(task, translated_text, progress_data, retry_lock)
         except Exception as e:
             logging.error("Error processing %s: %s", task.filename, str(e))
             self._increase_retry_count(task.filename, progress_data, retry_lock)
