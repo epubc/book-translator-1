@@ -7,8 +7,8 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
 from PyQt5.QtCore import Qt, QSettings, QThread, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtGui import QFont, QTextCursor
 
-from logger import logging_utils
-from translator.core import Translator
+from logger import logging_utils  # Assuming this is your custom logger setup
+from translator.core import Translator  # And other necessary imports
 from translator.file_handler import FileHandler
 from downloader.factory import DownloaderFactory
 from config.models import get_model_config
@@ -43,7 +43,11 @@ class TranslationThread(QThread):
     def __init__(self, params):
         super().__init__()
         self.params = params
-        self._is_running = True
+        self._is_running = True  # Use a flag to control execution
+        self.downloader = None  # Store downloader instance
+        self.file_handler = None # Store file_handler instance
+        self.translator = None  # Store translator instance
+
 
     def run(self):
         try:
@@ -52,15 +56,16 @@ class TranslationThread(QThread):
 
             book_url = self.params['book_url']
             output_dir = Path(self.params['output_directory'])
-
-            self.stage_update.emit("Creating downloader...")
-            downloader = DownloaderFactory.create_downloader(url=book_url, output_dir=output_dir)
-            book_info = downloader.book_info
-            book_dir = downloader.book_dir
-
             start_chapter = self.params['start_chapter']
             end_chapter = self.params['end_chapter']
             model_config = get_model_config(self.params['model_name'])
+
+            self.stage_update.emit("Creating downloader...")
+            self.downloader = DownloaderFactory.create_downloader(url=book_url, output_dir=output_dir)
+            if not self._is_running: return  # Check at each major step
+            book_info = self.downloader.book_info
+            book_dir = self.downloader.book_dir
+
 
             logging_utils.configure_logging(
                 book_dir,
@@ -69,36 +74,33 @@ class TranslationThread(QThread):
             )
 
             self.stage_update.emit("Preparing file handler...")
-            file_handler = FileHandler(
+            self.file_handler = FileHandler(
                 book_dir=book_dir,
                 start_chapter=start_chapter,
                 end_chapter=end_chapter
             )
-            translator = Translator(
+            self.translator = Translator(
                 model_config=model_config,
-                file_handler=file_handler
+                file_handler=self.file_handler
             )
 
             # Stage 1: Download
             self.stage_update.emit("Downloading chapters")
             self.update_progress.emit(25)
-            if not self._is_running:
-                return
-            downloader.download_book()
+            if not self._is_running: return
+            self.downloader.download_book()  #  download logic.
 
             # Stage 2: Create prompts
             self.stage_update.emit("Creating prompts")
             self.update_progress.emit(50)
-            if not self._is_running:
-                return
-            file_handler.create_prompt_files_from_chapters()
+            if not self._is_running: return
+            self.file_handler.create_prompt_files_from_chapters()
 
             # Stage 3: Translate
             self.stage_update.emit("Translating content")
             self.update_progress.emit(75)
-            if not self._is_running:
-                return
-            translator.process_translation(
+            if not self._is_running: return
+            self.translator.process_translation(
                 start_chapter=start_chapter,
                 end_chapter=end_chapter,
                 prompt_style=self.params['prompt_style']
@@ -107,22 +109,42 @@ class TranslationThread(QThread):
             # Stage 4: Generate EPUB
             self.stage_update.emit("Generating EPUB")
             self.update_progress.emit(95)
-            if not self._is_running:
-                return
-            epub_path = file_handler.generate_epub(book_info.title, book_info.author)
+            if not self._is_running: return
+            epub_path = self.file_handler.generate_epub(book_info.title, book_info.author)
             self.update_log.emit(f"EPUB generated at: {epub_path}")
+
 
             self.update_progress.emit(100)
             self.finished.emit(True)
+
         except Exception as e:
-            logging.error(str(e))
+            logging.exception("An error occurred during translation:")  # Use logging.exception
+            self.update_log.emit(f"Error: {e}")
             self.finished.emit(False)
         finally:
-            self._is_running = False
+            self._is_running = False  # Ensure flag is reset
+            self.downloader = None  # clean downloader instance
+            self.file_handler = None # clean file_handler instance
+            self.translator = None  # clean translator instance
+
 
     def stop(self):
-        self._is_running = False
-        self.terminate()
+        self._is_running = False  # Signal the thread to stop
+        if self.downloader:
+            self.downloader.stop()  # Stop the downloader, if it exists.
+        if self.file_handler:
+            self.file_handler.stop()
+        if self.translator:
+            self.translator.stop()
+
+        self.update_log.emit("Stopping process...")
+        self.wait(1000)  # Wait up to 1 second for the thread to finish.
+        if self.isRunning():  # If still running after waiting...
+            self.terminate() # ...forcefully terminate (use as last resort)
+            self.update_log.emit("Process terminated.")
+        else:
+            self.update_log.emit("Process stopped cleanly.")
+
 
 
 # ======================
@@ -135,7 +157,6 @@ class SettingsDialog(QDialog):
         self.setFixedSize(400, 200)
         self.init_ui()
         self.setWindowModality(Qt.ApplicationModal)  # Prevent interaction with main window
-
 
     def init_ui(self):
         layout = QVBoxLayout()
@@ -202,19 +223,6 @@ class TranslationDialog(QDialog):
     def init_ui(self):
         layout = QVBoxLayout()
 
-        # Progress Bar
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 100)
-        self.stage_label = QLabel("Current Stage: Idle")
-
-        # URL Input and other controls remain the same...
-
-        # Progress Section
-        progress_layout = QVBoxLayout()
-        progress_layout.addWidget(self.stage_label)
-        progress_layout.addWidget(self.progress_bar)
-        layout.addLayout(progress_layout)
-
         # URL Input
         self.url_edit = QLineEdit()
         self.url_edit.setPlaceholderText("Enter book URL")
@@ -228,17 +236,38 @@ class TranslationDialog(QDialog):
         self.style_combo.addItem("Modern Style", 1)
         self.style_combo.addItem("China Fantasy Style", 2)
 
-        # Chapter Range
+        # Chapter Range - Initially hidden
+        self.start_spin_label = QLabel("Start Chapter:")
         self.start_spin = QSpinBox()
         self.start_spin.setRange(0, 9999)
+        self.start_spin.setValue(0)  # Default to 0
+        self.start_spin.hide()
+        self.start_spin_label.hide()
+
+
+        self.end_spin_label = QLabel("End Chapter:")
         self.end_spin = QSpinBox()
         self.end_spin.setRange(0, 9999)
+        self.end_spin.setValue(0)  # Default to 0
+        self.end_spin.hide()
+        self.end_spin_label.hide()
+
+        # Chapter Range Toggle Button
+        self.chapter_range_btn = QPushButton("Set Chapter Range")
+        self.chapter_range_btn.setCheckable(True)
+        self.chapter_range_btn.clicked.connect(self.toggle_chapter_range)
+
 
         # Output Directory
         self.output_edit = QLineEdit()
         self.output_edit.setText(str(Path.home() / "Downloads"))
         browse_btn = QPushButton("Browse...")
         browse_btn.clicked.connect(self.choose_directory)
+
+        # Progress Bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.stage_label = QLabel("Current Stage: Idle")
 
         # Progress Section
         progress_layout = QVBoxLayout()
@@ -255,8 +284,10 @@ class TranslationDialog(QDialog):
         form_layout.addRow("Book URL:", self.url_edit)
         form_layout.addRow("Model:", self.model_combo)
         form_layout.addRow("Style:", self.style_combo)
-        form_layout.addRow("Start Chapter:", self.start_spin)
-        form_layout.addRow("End Chapter:", self.end_spin)
+        form_layout.addRow(self.chapter_range_btn)
+        form_layout.addRow(self.start_spin_label, self.start_spin)
+        form_layout.addRow(self.end_spin_label, self.end_spin)
+
 
         # Output Layout
         output_layout = QHBoxLayout()
@@ -268,7 +299,7 @@ class TranslationDialog(QDialog):
         self.start_btn = QPushButton("Start Translation")
         self.start_btn.clicked.connect(self.start_translation)
         self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.clicked.connect(self.reject)
+        self.cancel_btn.clicked.connect(self.on_cancel)  # Connect to on_cancel
 
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.start_btn)
@@ -279,8 +310,19 @@ class TranslationDialog(QDialog):
         layout.addWidget(self.log_area)
         layout.addLayout(btn_layout)
         self.setLayout(layout)
-        # Modify cancel button connection
-        self.cancel_btn.clicked.connect(self.on_cancel)
+
+    def toggle_chapter_range(self):
+        if self.chapter_range_btn.isChecked():
+            self.start_spin.show()
+            self.end_spin.show()
+            self.start_spin_label.show()
+            self.end_spin_label.show()
+        else:
+            self.start_spin.hide()
+            self.end_spin.hide()
+            self.start_spin_label.hide()
+            self.end_spin_label.hide()
+
 
     def on_cancel(self):
         if self.thread and self.thread.isRunning():
@@ -291,22 +333,20 @@ class TranslationDialog(QDialog):
             )
 
             if reply == QMessageBox.Yes:
-                self.thread.stop()
-                self.log_area.append("Translation cancelled by user")
+                self.thread.stop()  # Call the stop method
+                self.log_area.append("Translation cancelled by user.")
                 self.start_btn.setEnabled(True)
         else:
-            self.reject()
+            self.reject()  # Close the dialog if no thread is running
 
     def closeEvent(self, event):
         if self.thread and self.thread.isRunning():
-            event.ignore()
+            event.ignore()  # Prevent closing if the thread is active.
             QMessageBox.warning(self, "Operation in Progress",
-                                "Please cancel the current translation before closing")
+                                "Please cancel the current translation before closing.")
         else:
-            logging.root.removeHandler(self.log_handler)
+            logging.root.removeHandler(self.log_handler)  # Remove the handler
             super().closeEvent(event)
-
-
 
     def choose_directory(self):
         directory = QFileDialog.getExistingDirectory(self, "Select Output Directory")
@@ -314,12 +354,17 @@ class TranslationDialog(QDialog):
             self.output_edit.setText(directory)
 
     def start_translation(self):
+        # Get start and end chapter values.  If the boxes are hidden, use None.
+        start_chapter = self.start_spin.value() if self.start_spin.isVisible() else None
+        end_chapter = self.end_spin.value() if self.end_spin.isVisible() else None
+
+
         params = {
             'book_url': self.url_edit.text(),
             'model_name': self.model_combo.currentText(),
             'prompt_style': self.style_combo.currentData(),
-            'start_chapter': self.start_spin.value(),
-            'end_chapter': self.end_spin.value(),
+            'start_chapter': start_chapter,  # Pass the values (or None)
+            'end_chapter': end_chapter,      # Pass the values (or None)
             'output_directory': self.output_edit.text()
         }
 
@@ -330,10 +375,12 @@ class TranslationDialog(QDialog):
         self.thread = TranslationThread(params)
         self.thread.update_log.connect(self.update_log)
         self.thread.finished.connect(self.on_finished)
-        self.start_btn.setEnabled(False)
-        self.thread.start()
         self.thread.stage_update.connect(self.update_stage)
         self.thread.update_progress.connect(self.progress_bar.setValue)
+
+        self.start_btn.setEnabled(False)
+        self.thread.start()
+
 
     @pyqtSlot(str)
     def update_stage(self, stage_name):
@@ -361,7 +408,6 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.load_settings()
         self.setWindowModality(Qt.NonModal)  # Allow interaction with dialogs
-
 
     def init_ui(self):
         central_widget = QWidget()
@@ -402,7 +448,7 @@ class MainWindow(QMainWindow):
 
     def show_translate_dialog(self):
         dialog = TranslationDialog(self)
-        dialog.setModal(False)  # Allow keeping dialog open
+        dialog.setModal(False)  # Allow keeping the dialog open
         dialog.show()
 
     def show_settings(self):

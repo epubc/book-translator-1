@@ -347,3 +347,8 @@ class FileHandler:
         except Exception as e:
             logging_utils.log_exception(e, "EPUB generation failed.")
             return None
+
+
+    def stop(self):
+        print("FileHandler stop() called")
+        self._stop_requested = True

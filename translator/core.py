@@ -294,3 +294,7 @@ class Translator:
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(model.generate_content, prompt)
             return future.result(timeout=120)
+
+    def stop(self):
+        print("Translator stop() called")
+        self._stop_requested = True
