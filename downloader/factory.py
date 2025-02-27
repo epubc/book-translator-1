@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Dict, Type
+from typing import Dict, Type, Optional
 from urllib.parse import urlparse
 
 from downloader.base import BaseBookDownloader
@@ -32,13 +32,15 @@ class DownloaderFactory:
         return decorator
 
     @classmethod
-    def create_downloader(cls, url: str, output_dir: Path) -> BaseBookDownloader:
+    def create_downloader(cls, url: str, output_dir: Path, start_chapter: Optional[int] = None, end_chapter: Optional[int] = None) -> BaseBookDownloader:
         """
         Create appropriate downloader instance based on URL.
 
         Args:
             url: The book URL to download from
             output_dir: Directory to save downloaded content
+            start_chapter: Chapter to start from
+            end_chapter: Chapter to end at
 
         Returns:
             Instance of appropriate BaseBookDownloader subclass
@@ -66,4 +68,4 @@ class DownloaderFactory:
         if not downloader_class:
             raise ValueError(f"No suitable downloader found for URL: {url}")
 
-        return downloader_class(output_dir, url)
+        return downloader_class(output_dir, url, start_chapter, end_chapter)

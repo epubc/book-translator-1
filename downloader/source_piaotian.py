@@ -96,15 +96,21 @@ class PiaotianDownloader(BaseBookDownloader):
         return "\n".join(relevant_lines)
 
     def _extract_title(self, soup: BeautifulSoup) -> str:
-        text = soup.find('title').get_text(strip=True)
-        parts = text.split("-")
-        return parts[0].strip("《》") if parts else "Unknown Title"
+        title_tag = soup.find('h1')
+        if title_tag:
+            return title_tag.get_text(strip=True)
+        return ''
 
     def _extract_author(self, soup: BeautifulSoup) -> str:
-        text = soup.find('title').get_text(strip=True)
-        parts = text.split("-")
-        return parts[1].strip() if len(parts) > 1 else "Unknown Author"
-
+        # Use a regex that accounts for spaces and non-breaking spaces (i.e. \xa0) between "作" and "者"
+        author_td = soup.find('td', string=re.compile(r'作[\s\xa0]*者'))
+        if author_td:
+            text = author_td.get_text(strip=True)
+            # Extract the portion after "作者：" using a regex that handles both normal and non-breaking spaces
+            match = re.search(r'作[\s\xa0]*者：[\s\xa0]*(.+)', text)
+            if match:
+                return match.group(1).strip()
+        return ''
 
     def _get_page(self, session: requests.Session, url: str) -> Optional[BeautifulSoup]:
         try:

@@ -15,7 +15,6 @@ from urllib3.util import Retry
 from fake_useragent import UserAgent
 
 from config import settings
-from config.models import get_model_config
 from translator.core import Translator, PromptStyle
 
 
@@ -52,17 +51,18 @@ class BaseBookDownloader(ABC):
     concurrent_downloads = 1
     request_delay = 0
     source_language = ""
-    enable_book_info_translation: False
+    enable_book_info_translation = False
 
-
-
-    def __init__(self, output_dir: Path, url: str):
+    def __init__(self, output_dir: Path, url: str, start_chapter:Optional[int] = None, end_chapter:Optional[int] = None):
         self.url = url
         self.book_id = self._extract_book_id(url)
         self.book_dir = output_dir / f"{self.__class__.name}/book_{self.book_id}"
         self.book_dir.mkdir(parents=True, exist_ok=True)
         self._state_lock = threading.Lock()
 
+        # Store start_chapter and end_chapter as instance variables
+        self.start_chapter = start_chapter
+        self.end_chapter = end_chapter
 
         self.bulk_download = self.__class__.bulk_download
         self.concurrent_downloads = self.__class__.concurrent_downloads
@@ -108,12 +108,18 @@ class BaseBookDownloader(ABC):
         chapter_urls = self.state['chapter_urls']
         download_status = self.state.get('download_status', defaultdict(str))
 
-        # Filter unprocessed chapters with their original indices
+        # Filter unprocessed chapters within the specified range
         unprocessed = [
             (idx, url)
             for idx, url in enumerate(chapter_urls, start=1)
-            if download_status.get(str(idx))  !="completed"
+            if (self.start_chapter is None or idx >= self.start_chapter)
+            and (self.end_chapter is None or idx <= self.end_chapter)
+            and download_status.get(str(idx)) != "completed"
         ]
+
+        if not unprocessed:
+            logging.info("No chapters to download in the specified range.")
+            return
 
         batch_size = self.concurrent_downloads
         for i in range(0, len(unprocessed), batch_size):
@@ -132,7 +138,6 @@ class BaseBookDownloader(ABC):
                         with self._state_lock:
                             self.state['download_status'][str(chapter_num)] = "failed"
                             self._save_state()
-            # Wait for a while after processing each batch
             time.sleep(self.request_delay)
 
     def _download_sequentially(self) -> None:
@@ -141,6 +146,13 @@ class BaseBookDownloader(ABC):
         download_status = self.state.get('download_status', {})
 
         for chapter_num, url in enumerate(chapter_urls, start=1):
+            # Skip chapters before start_chapter
+            if self.start_chapter is not None and chapter_num < self.start_chapter:
+                continue
+            # Stop after end_chapter
+            if self.end_chapter is not None and chapter_num > self.end_chapter:
+                break
+            # Skip already completed chapters
             if download_status.get(str(chapter_num)) == "completed":
                 continue
 
@@ -233,7 +245,6 @@ class BaseBookDownloader(ABC):
     def _random_user_agent(self) -> str:
         """Generate a random user agent for requests."""
         return UserAgent().random
-
 
     @abstractmethod
     def _extract_book_id(self, url: str) -> str:

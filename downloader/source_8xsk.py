@@ -82,12 +82,12 @@ class EightXSKDownloader(BaseBookDownloader):
     def _extract_title(self, soup: BeautifulSoup) -> str:
         text = soup.find('title').get_text(strip=True)
         parts = text.split("-")
-        return parts[0].strip("《》") if parts else "Unknown Title"
+        return parts[0].strip("《》") if parts else ''
 
     def _extract_author(self, soup: BeautifulSoup) -> str:
         text = soup.find('title').get_text(strip=True)
         parts = text.split("-")
-        return parts[1].strip() if len(parts) > 1 else "Unknown Author"
+        return parts[1].strip() if len(parts) > 1 else ''
 
     def _extract_chapters_from_page(self, soup: BeautifulSoup) -> List[str]:
         chapter_list = soup.find("dl", id="jieqi_page_contents")
