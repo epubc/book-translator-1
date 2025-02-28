@@ -4,24 +4,22 @@ import json
 import uuid
 import datetime
 from pathlib import Path
-from typing import Dict
 
 from PyQt5 import sip
-from PyQt5.QtSvg import QSvgWidget
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QComboBox, QSpinBox, QFileDialog,
                              QDialog, QFormLayout, QTextEdit, QMessageBox, QProgressBar, QTableWidget, QTableWidgetItem,
-                             QScrollArea, QStyle, QSizePolicy, QFrame, QTabWidget)  # Added QStyle
+                             QScrollArea, QStyle, QSizePolicy, QFrame, QTabWidget)
 from PyQt5.QtCore import Qt, QSettings, QThread, pyqtSignal, pyqtSlot, QObject, QStandardPaths, QUrl
 from PyQt5.QtGui import QFont, QTextCursor, QDesktopServices
 
-from logger import logging_utils  # Assuming this is your custom logger setup
+from logger import logging_utils
 from translator.core import Translator
 from translator.file_handler import FileHandler
 from downloader.factory import DownloaderFactory
 from config.models import get_model_config
 
-# Define stylesheets for light and dark themes
+# Stylesheets remain unchanged
 light_stylesheet = """
 QWidget {
     font-family: 'Segoe UI', sans-serif;
@@ -108,9 +106,7 @@ QTableWidget {
 }
 """
 
-##############################
-# History Manager
-##############################
+# HistoryManager class remains unchanged
 class HistoryManager:
     @classmethod
     def get_history_file(cls):
@@ -165,9 +161,6 @@ class HistoryManager:
         history = [task for task in history if task.get("id") != task_id]
         cls.save_history(history)
 
-##############################
-# Custom Log Handler
-##############################
 class QTextEditLogHandler(QObject, logging.Handler):
     log_signal = pyqtSignal(str)
 
@@ -181,13 +174,11 @@ class QTextEditLogHandler(QObject, logging.Handler):
         msg = self.format(record)
         self.log_signal.emit(msg)
 
-##############################
-# Thread Workers
-##############################
+# TranslationThread class remains unchanged
 class TranslationThread(QThread):
     update_log = pyqtSignal(str)
     update_progress = pyqtSignal(int)
-    finished = pyqtSignal(bool, str)  # Updated to include EPUB path
+    finished = pyqtSignal(bool, str)
     stage_update = pyqtSignal(str)
 
     def __init__(self, params):
@@ -265,12 +256,12 @@ class TranslationThread(QThread):
             self.update_log.emit(f"EPUB generated at: {epub_path}")
 
             self.update_progress.emit(100)
-            self.finished.emit(True, str(epub_path))  # Emit success with EPUB path
+            self.finished.emit(True, str(epub_path))
 
         except Exception as e:
             logging.exception("An error occurred during translation:")
             self.update_log.emit(f"Error: {e}")
-            self.finished.emit(False, "")  # Emit failure with empty path
+            self.finished.emit(False, "")
         finally:
             self._is_running = False
             self.downloader = None
@@ -289,15 +280,12 @@ class TranslationThread(QThread):
         else:
             self.update_log.emit("Process stopped cleanly.")
 
-##############################
-# Enhanced Progress Visualization
-##############################
-
+# EnhancedProgressDialog class remains unchanged
 class EnhancedProgressDialog(QDialog):
     def __init__(self, get_status_func, parent=None):
         super().__init__(parent)
         self.get_status_func = get_status_func
-        self.chapter_status = self.get_status_func()  # Initial data
+        self.chapter_status = self.get_status_func()
         self.setWindowTitle("Chapter Translation Progress")
         self.resize(700, 500)
         self.init_ui()
@@ -307,7 +295,6 @@ class EnhancedProgressDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(10)
 
-        # Summary section
         summary_frame = QFrame()
         summary_frame.setFrameShape(QFrame.StyledPanel)
         summary_frame.setFrameShadow(QFrame.Raised)
@@ -334,10 +321,8 @@ class EnhancedProgressDialog(QDialog):
         summary_layout.addWidget(overall_progress)
         layout.addWidget(summary_frame)
 
-        # Tab widget for chapter details and progress chart
         tab_widget = QTabWidget()
 
-        # Tab 1: Chapter Details
         chapter_tab = QWidget()
         chapter_layout = QVBoxLayout(chapter_tab)
         scroll_area = QScrollArea()
@@ -409,25 +394,21 @@ class EnhancedProgressDialog(QDialog):
         chapter_layout.addWidget(scroll_area)
         tab_widget.addTab(chapter_tab, "Chapter Details")
 
-
         layout.addWidget(tab_widget)
 
         button_layout = QHBoxLayout()
-        button_layout.addStretch() # Add stretch to center the button
+        button_layout.addStretch()
         close_btn = QPushButton("Close")
         close_btn.setIcon(self.style().standardIcon(QStyle.SP_DialogCloseButton))
         close_btn.clicked.connect(self.accept)
         button_layout.addWidget(close_btn)
-        button_layout.addStretch() # Add stretch to center the button
+        button_layout.addStretch()
         layout.addLayout(button_layout)
 
         self.setLayout(layout)
 
     def refresh_data(self):
-        """Update data from source and refresh UI"""
         self.chapter_status = self.get_status_func()
-        # Clear existing widgets and rebuild
-        # sip.delete(self.tab_widget)
         self.init_ui()
 
     def export_progress(self):
@@ -448,30 +429,28 @@ class EnhancedProgressDialog(QDialog):
             except Exception as e:
                 QMessageBox.warning(self, "Export Failed", f"Error: {str(e)}")
 
-##############################
-# Configuration Dialog
-##############################
+# SettingsDialog class remains unchanged
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Configuration")
-        self.setMinimumSize(450, 250)  # Increased minimum size
+        self.setMinimumSize(450, 250)
         self.init_ui()
         self.setWindowModality(Qt.ApplicationModal)
 
     def init_ui(self):
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)  # Increased spacing
+        layout.setSpacing(15)
 
         form_layout = QFormLayout()
         form_layout.setSpacing(10)
-        form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)  # Allow fields to grow
+        form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
         self.api_key_edit = QLineEdit()
         self.api_key_edit.setPlaceholderText("Enter Gemini API Key")
         self.api_key_edit.setEchoMode(QLineEdit.Normal)
-        self.api_key_edit.setMinimumWidth(300)  # Set minimum width
+        self.api_key_edit.setMinimumWidth(300)
 
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(["Light", "Dark"])
@@ -484,7 +463,7 @@ class SettingsDialog(QDialog):
 
         btn_box = QHBoxLayout()
         btn_box.setSpacing(20)
-        btn_box.addStretch(1)  # Add stretch to center buttons
+        btn_box.addStretch(1)
 
         save_btn = QPushButton("Save")
         save_btn.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
@@ -498,10 +477,10 @@ class SettingsDialog(QDialog):
 
         btn_box.addWidget(save_btn)
         btn_box.addWidget(cancel_btn)
-        btn_box.addStretch(1)  # Add stretch to center buttons
+        btn_box.addStretch(1)
 
         layout.addLayout(form_layout)
-        layout.addStretch(1)  # Add stretch between form and buttons
+        layout.addStretch(1)
         layout.addLayout(btn_box)
         self.setLayout(layout)
 
@@ -520,9 +499,7 @@ class SettingsDialog(QDialog):
         QMessageBox.information(self, "Success", "Settings saved successfully!")
         self.accept()
 
-##############################
-# Translation Dialog (Singleton)
-##############################
+# Updated TranslationDialog class with validation and tooltip
 class TranslationDialog(QDialog):
     active_instance = None
 
@@ -556,16 +533,19 @@ class TranslationDialog(QDialog):
     def init_ui(self):
         layout = QVBoxLayout()
         layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)  # Added consistent spacing
+        layout.setSpacing(10)
 
-        # URL input with better stretching
+        # URL input with tooltip
         url_layout = QHBoxLayout()
         url_label = QLabel("Book URL:")
-        url_label.setFixedWidth(100)  # Fixed width for labels
+        url_label.setFixedWidth(100)
         self.url_edit = QLineEdit()
         self.url_edit.setPlaceholderText("Enter book URL")
+        supported_domains = DownloaderFactory.get_supported_domains()
+        tooltip_text = "Supported domains: " + ", ".join(supported_domains)
+        self.url_edit.setToolTip(tooltip_text)
         url_layout.addWidget(url_label)
-        url_layout.addWidget(self.url_edit, 1)  # Stretch factor of 1
+        url_layout.addWidget(self.url_edit, 1)
         layout.addLayout(url_layout)
 
         # Model selection
@@ -574,7 +554,7 @@ class TranslationDialog(QDialog):
         model_label.setFixedWidth(100)
         self.model_combo = QComboBox()
         self.model_combo.addItems(["gemini-2.0-flash", "gemini-2.0-flash-lite"])
-        self.model_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)  # Expand horizontally
+        self.model_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         model_layout.addWidget(model_label)
         model_layout.addWidget(self.model_combo, 1)
         layout.addLayout(model_layout)
@@ -600,7 +580,7 @@ class TranslationDialog(QDialog):
         self.chapter_range_btn.clicked.connect(self.toggle_chapter_range)
         range_layout.addWidget(range_spacer)
         range_layout.addWidget(self.chapter_range_btn)
-        range_layout.addStretch(1)  # Add stretch at the end for proper alignment
+        range_layout.addStretch(1)
         layout.addLayout(range_layout)
 
         # Start chapter spinner (initially hidden)
@@ -608,8 +588,8 @@ class TranslationDialog(QDialog):
         self.start_spin_label = QLabel("Start Chapter:")
         self.start_spin_label.setFixedWidth(100)
         self.start_spin = QSpinBox()
-        self.start_spin.setRange(0, 9999)
-        self.start_spin.setValue(0)
+        self.start_spin.setRange(1, 9999)  # Minimum set to 1
+        self.start_spin.setValue(1)        # Default value set to 1
         start_layout.addWidget(self.start_spin_label)
         start_layout.addWidget(self.start_spin)
         start_layout.addStretch(1)
@@ -622,8 +602,8 @@ class TranslationDialog(QDialog):
         self.end_spin_label = QLabel("End Chapter:")
         self.end_spin_label.setFixedWidth(100)
         self.end_spin = QSpinBox()
-        self.end_spin.setRange(0, 9999)
-        self.end_spin.setValue(0)
+        self.end_spin.setRange(1, 9999)  # Minimum set to 1
+        self.end_spin.setValue(1)        # Default value set to 1
         end_layout.addWidget(self.end_spin_label)
         end_layout.addWidget(self.end_spin)
         end_layout.addStretch(1)
@@ -640,9 +620,9 @@ class TranslationDialog(QDialog):
         browse_btn = QPushButton("Browse...")
         browse_btn.setIcon(self.style().standardIcon(QStyle.SP_DirIcon))
         browse_btn.clicked.connect(self.choose_directory)
-        browse_btn.setFixedWidth(100)  # Fixed width for browse button
+        browse_btn.setFixedWidth(100)
         output_layout.addWidget(output_label)
-        output_layout.addWidget(self.output_edit, 1)  # Give stretch factor
+        output_layout.addWidget(self.output_edit, 1)
         output_layout.addWidget(browse_btn)
         layout.addLayout(output_layout)
 
@@ -674,26 +654,26 @@ class TranslationDialog(QDialog):
         log_layout.addWidget(QLabel("Progress Log:"))
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
-        self.log_area.setMinimumHeight(150)  # Increased minimum height
-        self.log_area.setFont(QFont("Consolas", 10))  # Smaller font
+        self.log_area.setMinimumHeight(150)
+        self.log_area.setFont(QFont("Consolas", 10))
         log_layout.addWidget(self.log_area)
         layout.addLayout(log_layout)
 
         # Start and cancel buttons
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
-        btn_layout.addStretch(1)  # Add stretch to center buttons
+        btn_layout.addStretch(1)
         self.start_btn = QPushButton("Start Translation")
         self.start_btn.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
         self.start_btn.clicked.connect(self.start_translation)
-        self.start_btn.setMinimumWidth(150)  # Set minimum width
+        self.start_btn.setMinimumWidth(150)
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.setIcon(self.style().standardIcon(QStyle.SP_MediaStop))
         self.cancel_btn.clicked.connect(self.on_cancel)
-        self.cancel_btn.setMinimumWidth(100)  # Set minimum width
+        self.cancel_btn.setMinimumWidth(100)
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.cancel_btn)
-        btn_layout.addStretch(1)  # Add stretch to center buttons
+        btn_layout.addStretch(1)
         layout.addLayout(btn_layout)
 
         self.setLayout(layout)
@@ -741,7 +721,45 @@ class TranslationDialog(QDialog):
         if directory:
             self.output_edit.setText(directory)
 
+    def validate_inputs(self):
+        """Validate URL, start chapter, and end chapter inputs."""
+        # URL validation
+        url = self.url_edit.text().strip()
+        if not url:
+            QMessageBox.warning(self, "Validation Error", "URL cannot be empty.")
+            return False
+
+        try:
+            from urllib.parse import urlparse
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc
+            if not domain:
+                raise ValueError("missing domain")
+            supported_domains = DownloaderFactory.get_supported_domains()
+            if domain not in supported_domains:
+                QMessageBox.warning(self, "Validation Error",
+                                    f"Unsupported domain: {domain}\nSupported domains: {', '.join(supported_domains)}")
+                return False
+        except Exception as e:
+            QMessageBox.warning(self, "Validation Error", f"Invalid URL: {e}")
+            return False
+
+        # Chapter range validation
+        if self.chapter_range_btn.isChecked():
+            start_chapter = self.start_spin.value()
+            end_chapter = self.end_spin.value()
+            if start_chapter > end_chapter:
+                QMessageBox.warning(self, "Validation Error",
+                                    "Start chapter cannot be greater than end chapter.")
+                return False
+
+        return True
+
     def start_translation(self):
+        """Start the translation process after validation."""
+        if not self.validate_inputs():
+            return
+
         start_chapter = self.start_spin.value() if self.start_spin.isVisible() else None
         end_chapter = self.end_spin.value() if self.end_spin.isVisible() else None
 
@@ -753,10 +771,6 @@ class TranslationDialog(QDialog):
             'end_chapter': end_chapter,
             'output_directory': self.output_edit.text()
         }
-
-        if not params['book_url']:
-            QMessageBox.warning(self, "Warning", "Please enter a valid URL!")
-            return
 
         self.current_history_id = HistoryManager.add_task({
             "timestamp": datetime.datetime.now().isoformat(),
@@ -824,7 +838,7 @@ class TranslationDialog(QDialog):
                     self.start_spin.value() if self.start_spin.isVisible() else None,
                     self.end_spin.value() if self.end_spin.isVisible() else None
                 )
-            return self.chapter_status  # Fallback to last known status
+            return self.chapter_status
 
         dialog = EnhancedProgressDialog(status_getter, self)
         dialog.exec_()
@@ -850,7 +864,8 @@ class TranslationDialog(QDialog):
         start = task.get("start_chapter", None)
         end = task.get("end_chapter", None)
         if start is not None:
-            self.start_spin.setValue(int(start))
+            start_value = max(1, int(start))  # Ensure at least 1 due to new minimum
+            self.start_spin.setValue(start_value)
             self.start_spin.show()
             self.start_spin_label.show()
             self.chapter_range_btn.setChecked(True)
@@ -859,7 +874,8 @@ class TranslationDialog(QDialog):
             self.start_spin_label.hide()
             self.chapter_range_btn.setChecked(False)
         if end is not None:
-            self.end_spin.setValue(int(end))
+            end_value = max(1, int(end))  # Ensure at least 1 due to new minimum
+            self.end_spin.setValue(end_value)
             self.end_spin.show()
             self.end_spin_label.show()
         else:
@@ -867,15 +883,12 @@ class TranslationDialog(QDialog):
             self.end_spin_label.hide()
         self.output_edit.setText(task.get("output_directory", str(Path.home() / "Downloads")))
 
+    # Remaining methods (setup_enhanced_progress, update_elapsed_time, update_progress_stats) remain unchanged
     def setup_enhanced_progress(self):
-        """Set up enhanced progress tracking UI components"""
-
-        # Replace simple progress bar with a more detailed one
         progress_frame = QFrame()
         progress_frame.setFrameShape(QFrame.StyledPanel)
         progress_layout = QVBoxLayout(progress_frame)
 
-        # Stage and time info layout
         stage_time_layout = QHBoxLayout()
         self.stage_label = QLabel("Current Stage: Idle")
         self.time_label = QLabel("Elapsed: 00:00:00")
@@ -885,7 +898,6 @@ class TranslationDialog(QDialog):
         stage_time_layout.addWidget(self.time_label)
         progress_layout.addLayout(stage_time_layout)
 
-        # Progress bar with percentage
         progress_bar_layout = QHBoxLayout()
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
@@ -896,7 +908,6 @@ class TranslationDialog(QDialog):
         progress_bar_layout.addWidget(self.current_task_label)
         progress_layout.addLayout(progress_bar_layout)
 
-        # Add detailed sub-progress for current operation
         self.sub_progress_label = QLabel("Current Operation:")
         self.sub_progress_bar = QProgressBar()
         self.sub_progress_bar.setRange(0, 100)
@@ -904,7 +915,6 @@ class TranslationDialog(QDialog):
         progress_layout.addWidget(self.sub_progress_label)
         progress_layout.addWidget(self.sub_progress_bar)
 
-        # Stats layout
         stats_layout = QHBoxLayout()
         self.chapters_done_label = QLabel("Chapters: 0/0")
         self.est_completion_label = QLabel("Est. Completion: --:--:--")
@@ -917,7 +927,6 @@ class TranslationDialog(QDialog):
         return progress_frame
 
     def update_elapsed_time(self):
-        """Update elapsed time display"""
         if hasattr(self, 'start_time'):
             elapsed = datetime.datetime.now() - self.start_time
             hours, remainder = divmod(elapsed.seconds, 3600)
@@ -925,48 +934,38 @@ class TranslationDialog(QDialog):
             self.time_label.setText(f"Elapsed: {hours:02}:{minutes:02}:{seconds:02}")
 
     def update_progress_stats(self, progress, sub_progress=None, current_task=None):
-        """Update progress statistics with more detailed information"""
         if not hasattr(self, 'start_time'):
             self.start_time = datetime.datetime.now()
             self.last_progress_update = self.start_time
             self.last_progress_value = 0
 
-        # Update main progress bar
         self.progress_bar.setValue(progress)
 
-        # Update sub-progress if provided
         if sub_progress is not None:
             self.sub_progress_bar.setValue(sub_progress)
 
-        # Update current task label if provided
         if current_task:
             self.current_task_label.setText(current_task)
 
-        # Calculate speed and ETA
         now = datetime.datetime.now()
         time_diff = (now - self.last_progress_update).total_seconds()
-        if time_diff > 1:  # Only update calculations if more than a second has passed
-            # Calculate progress speed (progress points per second)
+        if time_diff > 1:
             progress_diff = progress - self.last_progress_value
             if progress_diff > 0:
                 speed = progress_diff / time_diff
                 self.avg_speed_label.setText(f"Speed: {speed:.2f} %/sec")
 
-                # Estimate completion time
                 if progress > 0 and progress < 100:
                     remaining_progress = 100 - progress
-                    eta_seconds = remaining_progress / max(speed, 0.001)  # Avoid division by zero
+                    eta_seconds = remaining_progress / max(speed, 0.001)
                     eta = datetime.timedelta(seconds=int(eta_seconds))
                     self.est_completion_label.setText(f"Est. Completion: {eta}")
 
-            # Update last progress values
             self.last_progress_update = now
             self.last_progress_value = progress
 
-        # Update elapsed time
         self.update_elapsed_time()
 
-        # Update HistoryManager if we have an ID
         if self.current_history_id:
             updates = {
                 "progress": progress,
@@ -974,13 +973,9 @@ class TranslationDialog(QDialog):
             }
             if current_task:
                 updates["current_task"] = current_task
-
             HistoryManager.update_task(self.current_history_id, updates)
 
-
-##############################
-# Translation History Dialog
-##############################
+# TranslationHistoryDialog class remains unchanged
 class TranslationHistoryDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -994,7 +989,6 @@ class TranslationHistoryDialog(QDialog):
         layout = QVBoxLayout()
         layout.setContentsMargins(15, 15, 15, 15)
 
-        # Search bar
         search_layout = QHBoxLayout()
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("Search by URL")
@@ -1003,29 +997,27 @@ class TranslationHistoryDialog(QDialog):
         search_layout.addWidget(self.search_edit)
         layout.addLayout(search_layout)
 
-        # Table setup
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels(["Timestamp", "Book URL", "Model", "Prompt Style",
                                               "Start Chapter", "End Chapter", "Output Directory", "Status"])
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setAlternatingRowColors(True)
-        self.table.setSortingEnabled(True)  # Enable sorting by clicking headers
+        self.table.setSortingEnabled(True)
         layout.addWidget(self.table)
 
-        # Buttons
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(20)
         load_btn = QPushButton("Load Selected Task")
-        load_btn.setIcon(self.style().standardIcon(QStyle.SP_DialogOpenButton))  # Added icon
+        load_btn.setIcon(self.style().standardIcon(QStyle.SP_DialogOpenButton))
         load_btn.clicked.connect(self.load_selected_task)
         remove_btn = QPushButton("Remove Selected Task")
-        remove_btn.setIcon(self.style().standardIcon(QStyle.SP_TrashIcon))  # Added icon
+        remove_btn.setIcon(self.style().standardIcon(QStyle.SP_TrashIcon))
         remove_btn.clicked.connect(self.remove_selected_task)
         refresh_btn = QPushButton("Refresh")
-        refresh_btn.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))  # Added icon
+        refresh_btn.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
         refresh_btn.clicked.connect(self.load_history)
         close_btn = QPushButton("Close")
-        close_btn.setIcon(self.style().standardIcon(QStyle.SP_DialogCloseButton))  # Added icon
+        close_btn.setIcon(self.style().standardIcon(QStyle.SP_DialogCloseButton))
         close_btn.clicked.connect(self.close)
         btn_layout.addWidget(load_btn)
         btn_layout.addWidget(remove_btn)
@@ -1040,17 +1032,12 @@ class TranslationHistoryDialog(QDialog):
         self.update_table()
 
     def update_table(self):
-        # Temporarily disable sorting while updating the table.
         self.table.setSortingEnabled(False)
-
-        # Filter tasks based on search text
         search_text = self.search_edit.text().lower()
         display_tasks = [
             task for task in self.history_tasks
             if search_text in task.get("book_url", "").lower()
         ]
-
-        # Clear and populate the table
         self.table.setRowCount(0)
         for task in display_tasks:
             rowPosition = self.table.rowCount()
@@ -1065,8 +1052,6 @@ class TranslationHistoryDialog(QDialog):
             self.table.setItem(rowPosition, 5, QTableWidgetItem(str(task.get("end_chapter", ""))))
             self.table.setItem(rowPosition, 6, QTableWidgetItem(task.get("output_directory", "")))
             self.table.setItem(rowPosition, 7, QTableWidgetItem(task.get("status", "")))
-
-        # Re-enable sorting after updating the table.
         self.table.setSortingEnabled(True)
 
     def load_selected_task(self):
@@ -1078,7 +1063,7 @@ class TranslationHistoryDialog(QDialog):
         task_id = self.table.item(row, 0).data(Qt.UserRole)
         task = next((t for t in self.history_tasks if t["id"] == task_id), None)
         if task:
-            dialog = TranslationDialog.get_instance(self)
+            dialog = TranslationDialog.get_instance(self.parent())
             dialog.load_task(task)
             dialog.setModal(False)
             dialog.show()
@@ -1097,9 +1082,7 @@ class TranslationHistoryDialog(QDialog):
         HistoryManager.remove_task_by_id(task_id)
         self.load_history()
 
-##############################
-# Main Window
-##############################
+# MainWindow class remains unchanged
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1119,15 +1102,15 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignCenter)
 
         translate_btn = QPushButton("Translate from URL")
-        translate_btn.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))  # Added icon
+        translate_btn.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
         translate_btn.clicked.connect(self.show_translate_dialog)
 
         history_btn = QPushButton("Translation History")
-        history_btn.setIcon(self.style().standardIcon(QStyle.SP_FileDialogDetailedView))  # Added icon
+        history_btn.setIcon(self.style().standardIcon(QStyle.SP_FileDialogDetailedView))
         history_btn.clicked.connect(self.show_history_dialog)
 
         config_btn = QPushButton("Configuration")
-        config_btn.setIcon(self.style().standardIcon(QStyle.SP_FileDialogInfoView))  # Added icon
+        config_btn.setIcon(self.style().standardIcon(QStyle.SP_FileDialogInfoView))
         config_btn.clicked.connect(self.show_settings)
 
         layout.addWidget(title)
@@ -1152,7 +1135,7 @@ class MainWindow(QMainWindow):
 
     def show_history_dialog(self):
         dialog = TranslationHistoryDialog(self)
-        dialog.exec_()
+        dialog.show()
 
     def load_settings(self):
         settings = QSettings("NovelTranslator", "Config")
@@ -1167,21 +1150,15 @@ class MainWindow(QMainWindow):
         else:
             app.setStyleSheet(light_stylesheet)
 
-##############################
-# Application Entry
-##############################
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-
-    # Load initial settings
     settings = QSettings("NovelTranslator", "Config")
     theme = settings.value("Theme", "Light")
     if theme == "Dark":
         app.setStyleSheet(dark_stylesheet)
     else:
         app.setStyleSheet(light_stylesheet)
-
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())

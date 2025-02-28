@@ -21,7 +21,6 @@ class DownloaderFactory:
             domains: List of domain names this downloader handles
             pattern: Optional regex pattern for more complex URL matching
         """
-
         def decorator(downloader_class: Type[BaseBookDownloader]):
             for domain in domains:
                 cls._downloaders[domain] = downloader_class
@@ -69,3 +68,10 @@ class DownloaderFactory:
             raise ValueError(f"No suitable downloader found for URL: {url}")
 
         return downloader_class(output_dir, url, start_chapter, end_chapter)
+
+    @classmethod
+    def get_supported_domains(cls) -> list[str]:
+        """
+        Returns a list of domains that have been registered with the downloader factory.
+        """
+        return list(cls._downloaders.keys())
