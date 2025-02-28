@@ -25,6 +25,8 @@ def main() -> None:
         downloader = DownloaderFactory.create_downloader( url=args.book_url, output_dir= Path(args.output_directory) )
         book_info = downloader.book_info
         book_dir = downloader.book_dir
+        source_infos = DownloaderFactory.get_source_info()
+        print(source_infos)
 
         start_chapter, end_chapter = args.start_chapter, args.end_chapter
         model_config = get_model_config(args.model_name)

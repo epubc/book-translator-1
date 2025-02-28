@@ -1,16 +1,15 @@
-import logging
 import re
 from typing import List, Optional
 
 import requests
 from bs4 import BeautifulSoup
 
-from downloader.base import BaseBookDownloader, BookInfo
+from downloader.base import BaseBookDownloader
 from downloader.factory import DownloaderFactory
 from translator.text_processing import preprocess_downloaded_text
 
 
-@DownloaderFactory.register(domains=["quanben.io"])
+@DownloaderFactory.register(domains=["quanben.io", "www.quanben.io"])
 class QuanbenDownloader(BaseBookDownloader):
 
     name = "quanben"

@@ -1,16 +1,15 @@
-import logging
 import re
 from typing import List, Optional
 
 import requests
 from bs4 import BeautifulSoup
 
-from downloader.base import BaseBookDownloader, BookInfo
+from downloader.base import BaseBookDownloader
 from downloader.factory import DownloaderFactory
 from translator.text_processing import preprocess_downloaded_text
 
 
-@DownloaderFactory.register(domains=["piaotia.com"])
+@DownloaderFactory.register(domains=["piaotia.com", "www.piaotia.com"])
 class PiaotianDownloader(BaseBookDownloader):
 
     name = "piaotian"
