@@ -239,7 +239,7 @@ class TranslationThread(QThread):
             self.update_progress.emit(50)
             if not self._is_running:
                 return
-            self.file_handler.create_prompt_files_from_chapters()
+            self.file_handler.create_prompt_files_from_chapters(start_chapter=start_chapter, end_chapter=end_chapter)
 
             self.stage_update.emit("Translating content")
             self.update_progress.emit(75)

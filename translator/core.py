@@ -77,7 +77,7 @@ class Translator:
             self.file_handler.extract_and_count_names()
 
         if not self._stop_requested:
-            self.file_handler.combine_chapter_translations()
+            self.file_handler.combine_chapter_translations(start_chapter=start_chapter, end_chapter=end_chapter)
             logging.info("Translation process completed for: %s", self.file_handler.book_dir)
         else:
             logging.info("Translation process stopped before completion.")

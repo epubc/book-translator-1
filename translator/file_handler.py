@@ -152,12 +152,15 @@ class FileHandler:
         return True
 
 
-    def combine_chapter_translations(self) -> None:
+    def combine_chapter_translations(self, start_chapter: Optional[int] = None, end_chapter: Optional[int] = None) -> None:
         """Combines translated prompt files for each chapter (in book_dir)."""
         translated_responses_dir = self.get_path("translation_responses")
         translated_chapters_dir = self.get_path("translated_chapters")
 
-        response_files = translated_responses_dir.glob("*.txt")
+        response_files = [
+            p for p in translated_responses_dir.glob("*.txt")
+            if is_in_chapter_range(p.name, start_chapter, end_chapter)
+        ]
 
         chapter_files = {}
         for filename in response_files:
@@ -192,12 +195,15 @@ class FileHandler:
         logging.info("Combine chapter translations complete")
 
 
-    def create_prompt_files_from_chapters(self) -> None:
+    def create_prompt_files_from_chapters(self, start_chapter: Optional[int] = None, end_chapter: Optional[int] = None) -> None:
         """Create prompt files from downloaded chapters, return count of prompts created."""
         download_dir = self.get_path("downloaded_chapters")
         prompt_count = 0
 
-        chapter_files = self.list_files_in_dir(download_dir, "*.txt")
+        chapter_files = [
+            p for p in download_dir.glob("*.txt")
+            if is_in_chapter_range(p.name, start_chapter, end_chapter)
+        ]
         if not chapter_files:
             logging.warning(f"No chapter files found in: {download_dir}")
             return
@@ -330,6 +336,7 @@ class FileHandler:
             logging.warning("No translated files found to create EPUB.")
             return
 
+        book_title = book_title.replace(":", " ")
         output_filepath = self.get_path("epub") / f"{book_title}.epub"
 
         epub_generator = EPUBGenerator() # Instantiate generator

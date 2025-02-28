@@ -87,7 +87,7 @@ class EightXSKDownloader(BaseBookDownloader):
     def _extract_author(self, soup: BeautifulSoup) -> str:
         text = soup.find('title').get_text(strip=True)
         parts = text.split("-")
-        return parts[1].strip() if len(parts) > 1 else ''
+        return parts[1].strip() if parts else ''
 
     def _extract_chapters_from_page(self, soup: BeautifulSoup) -> List[str]:
         chapter_list = soup.find("dl", id="jieqi_page_contents")
@@ -102,5 +102,5 @@ class EightXSKDownloader(BaseBookDownloader):
             response.raise_for_status()
             return BeautifulSoup(response.content, "html.parser")
         except Exception as e:
-            logging.error(f"Error fetching page: {url}", exc_info=True)
+            logging.error(f"Error fetching page: {url}, exception: {e}", exc_info=True)
             return None

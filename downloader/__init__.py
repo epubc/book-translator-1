@@ -1,7 +1,9 @@
-from .source_8xsk import EightXSKDownloader
-from .source_piaotian import PiaotianDownloader
+from .source.quanben import QuanbenDownloader
+from .source.eightxsk import EightXSKDownloader
+from .source.piaotian import PiaotianDownloader
 
 __all__ = [
     'EightXSKDownloader',
     'PiaotianDownloader',
+    'QuanbenDownloader'
 ]

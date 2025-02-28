@@ -102,11 +102,9 @@ class PiaotianDownloader(BaseBookDownloader):
         return ''
 
     def _extract_author(self, soup: BeautifulSoup) -> str:
-        # Use a regex that accounts for spaces and non-breaking spaces (i.e. \xa0) between "作" and "者"
         author_td = soup.find('td', string=re.compile(r'作[\s\xa0]*者'))
         if author_td:
             text = author_td.get_text(strip=True)
-            # Extract the portion after "作者：" using a regex that handles both normal and non-breaking spaces
             match = re.search(r'作[\s\xa0]*者：[\s\xa0]*(.+)', text)
             if match:
                 return match.group(1).strip()
@@ -118,5 +116,5 @@ class PiaotianDownloader(BaseBookDownloader):
             response.raise_for_status()
             return BeautifulSoup(response.content, "html.parser")
         except Exception as e:
-            logging.error(f"Error fetching page: {url}", exc_info=True)
+            logging.error(f"Error fetching page: {url}, exception: {e}", exc_info=True)
             return None
