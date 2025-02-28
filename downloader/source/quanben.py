@@ -27,21 +27,6 @@ class QuanbenDownloader(BaseBookDownloader):
             raise ValueError("Invalid book URL format")
         return match.group(1)
 
-    def _get_book_info(self) -> BookInfo:
-        soup = self._get_page(self.session, self.url)
-        if not soup:
-            raise ValueError("Failed to fetch book page")
-
-        title = self._extract_title(soup)
-        author = self._extract_author(soup)
-
-        return BookInfo(
-            id=self.book_id,
-            title=title,
-            author=author,
-            source_url=self.url,
-        )
-
     def _get_chapters(self) -> List[str]:
         """Extract chapter links from the book page and generate all URLs between first and last."""
         url = f"https://quanben.io/n/{self.book_id}/list.html"
@@ -123,12 +108,11 @@ class QuanbenDownloader(BaseBookDownloader):
     def _extract_author(self, soup: BeautifulSoup) -> str:
         return soup.find('span', itemprop="author").get_text(strip=True)
 
+    def _extract_cover_img(self, soup: BeautifulSoup) -> str:
+        img_tag = soup.find('img', itemprop="image")
+        if not img_tag:
+            return ''
 
-    def _get_page(self, session: requests.Session, url: str) -> Optional[BeautifulSoup]:
-        try:
-            response = session.get(url, timeout=5)
-            response.raise_for_status()
-            return BeautifulSoup(response.content, "html.parser")
-        except Exception as e:
-            logging.error(f"Error fetching page: {url}, exception: {e}", exc_info=True)
-            return None
+        src = img_tag.get('src')
+        return src if src else ''
+

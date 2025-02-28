@@ -25,21 +25,6 @@ class PiaotianDownloader(BaseBookDownloader):
             category_id, book_id = match.groups()
             return f"{category_id}/{book_id}"
 
-    def _get_book_info(self) -> BookInfo:
-        soup = self._get_page(self.session, self.url)
-        if not soup:
-            raise ValueError("Failed to fetch book page")
-
-        title = self._extract_title(soup)
-        author = self._extract_author(soup)
-
-        return BookInfo(
-            id=self.book_id,
-            title=title,
-            author=author,
-            source_url=self.url,
-        )
-
     def _get_chapters(self) -> List[str]:
         url = f"https://piaotia.com/html/{self.book_id}"
         soup = self._get_page(self.session, url)
@@ -110,11 +95,15 @@ class PiaotianDownloader(BaseBookDownloader):
                 return match.group(1).strip()
         return ''
 
-    def _get_page(self, session: requests.Session, url: str) -> Optional[BeautifulSoup]:
-        try:
-            response = session.get(url, timeout=5)
-            response.raise_for_status()
-            return BeautifulSoup(response.content, "html.parser")
-        except Exception as e:
-            logging.error(f"Error fetching page: {url}, exception: {e}", exc_info=True)
-            return None
+    def _extract_cover_img(self, soup: BeautifulSoup) -> str:
+        # Locate the td element that contains the cover image
+        td = soup.find('td', attrs={'width': '80%', 'valign': 'top'})
+        if not td:
+            return ''
+
+        img_tag = td.find('img')
+        if not img_tag:
+            return ''
+
+        src = img_tag.get('src')
+        return src if src else ''

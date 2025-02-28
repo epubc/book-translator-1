@@ -252,7 +252,7 @@ class TranslationThread(QThread):
             self.update_progress.emit(95)
             if not self._is_running:
                 return
-            epub_path = self.file_handler.generate_epub(book_info.title, book_info.author)
+            epub_path = self.file_handler.generate_epub(book_info.title, book_info.author, book_info.cover_img)
             self.update_log.emit(f"EPUB generated at: {epub_path}")
 
             self.update_progress.emit(100)

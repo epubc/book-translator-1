@@ -10,6 +10,7 @@ import time
 import json
 
 import requests
+from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 from fake_useragent import UserAgent
@@ -25,6 +26,7 @@ class BookInfo:
     title: str
     author: str
     source_url: str
+    cover_img: str
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert BookInfo to dictionary for serialization."""
@@ -205,6 +207,33 @@ class BaseBookDownloader(ABC):
         )
         self._save_state()
 
+    def _get_page(self, session: requests.Session, url: str) -> Optional[BeautifulSoup]:
+        try:
+            response = session.get(url, timeout=5)
+            response.raise_for_status()
+            return BeautifulSoup(response.content, "html.parser")
+        except Exception as e:
+            logging.error(f"Error fetching page: {url}, exception: {e}", exc_info=True)
+            return None
+
+
+    def _get_book_info(self) -> BookInfo:
+        soup = self._get_page(self.session, self.url)
+        if not soup:
+            raise ValueError("Failed to fetch book page")
+
+        title = self._extract_title(soup)
+        author = self._extract_author(soup)
+        cover_src = self._extract_cover_img(soup)
+        cover_img = self._get_image_path(cover_src)
+        return BookInfo(
+            id=self.book_id,
+            title=title,
+            author=author,
+            source_url=self.url,
+            cover_img=cover_img,
+        )
+
     def _save_chapter(self, chapter_number: int, content: str) -> None:
         """Save chapter content to file."""
         chapters_dir = self.book_dir / "downloaded_chapters"
@@ -242,6 +271,23 @@ class BaseBookDownloader(ABC):
         """Update the current state."""
         self.state.update(kwargs)
 
+    def _get_image_path(self, src: str) -> str:
+        # Define the path to save the cover image
+        image_path = self.book_dir / "cover.jpg"
+
+        # Attempt to download and save the image
+        try:
+            response = self.session.get(src, timeout=2)
+            if response.status_code == 200:
+                with open(image_path, 'wb') as f:
+                    f.write(response.content)
+                return image_path.as_posix()
+            else:
+                return ''
+        except Exception as e:
+            print(f"Error downloading cover image: {e}")
+            return ''
+
     def _random_user_agent(self) -> str:
         """Generate a random user agent for requests."""
         return UserAgent().random
@@ -252,8 +298,15 @@ class BaseBookDownloader(ABC):
         pass
 
     @abstractmethod
-    def _get_book_info(self) -> BookInfo:
-        """Extract book metadata (to be implemented by child classes)."""
+    def _extract_title(self, soup: BeautifulSoup) -> str:
+        pass
+
+    @abstractmethod
+    def _extract_author(self, soup: BeautifulSoup) -> str:
+        pass
+
+    @abstractmethod
+    def _extract_cover_img(self, soup: BeautifulSoup) -> str:
         pass
 
     @abstractmethod

@@ -327,7 +327,7 @@ class FileHandler:
             return
 
 
-    def generate_epub(self, book_title: str, book_author: str) -> Optional[Path]:
+    def generate_epub(self, book_title: str, book_author: str, cover_image: str) -> Optional[Path]:
         """Generate EPUB from combined translations, return path to EPUB or None on failure."""
         translated_chapters_dir = self.get_path("translated_chapters")
         chapter_files = sorted(translated_chapters_dir.glob("*.txt"))
@@ -343,9 +343,10 @@ class FileHandler:
         try:
             epub_generator.create_epub_from_txt_files(
                 chapter_files,
-                book_title,
-                book_author,
-                output_filepath,
+                title=book_title,
+                author=book_author,
+                cover_image=cover_image,
+                output_filepath=output_filepath,
                 language="vi",
                 toc_title="Mục Lục"
             )
