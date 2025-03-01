@@ -113,21 +113,6 @@ def split_text_into_chunks(text: str, chunk_size: int) -> List[str]:
         chunks.append(current_chunk)
     return chunks
 
-
-def clean_filename(filename: str) -> str:
-    """Remove all suffixes after chapter and index numbers.
-
-    Examples:
-        chapter_1_1_translated.txt -> chapter_1_1
-        chapter_2_2_xxx.txt -> chapter_2_2
-    """
-    # Match the pattern chapter_number_number and ignore everything after
-    match = re.match(r'(chapter_\d+_\d+).*', filename)
-    if match:
-        return match.group(1)
-    return filename.split('_')[0]
-
-
 def normalize_translation(translation_content: str) -> str:
     """Normalizes line spacing and applies replacements in a chapter file."""
     lines = translation_content.splitlines()

@@ -10,6 +10,7 @@ from pathlib import Path
 from core.translation_thread import TranslationThread
 from core.history_manager import HistoryManager
 from core.utils import QTextEditLogHandler
+from gui.button_styles import WidgetStyles, ButtonStyles
 from gui.progress_dialog import EnhancedProgressDialog
 import qtawesome as qta
 
@@ -51,22 +52,25 @@ class FileTranslationDialog(QDialog):
         content_layout.setContentsMargins(20, 20, 20, 20)
         content_layout.setSpacing(12)
 
+        # Title layout
         title_layout = QHBoxLayout()
         title_icon = QLabel()
         title_icon.setPixmap(self.qta.icon('fa5s.book-reader', color='#4a86e8').pixmap(32, 32))
         title_label = QLabel("File Translator")
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #4a86e8;")
+        title_label.setStyleSheet(WidgetStyles.get_title_label_style("primary"))
         title_layout.addWidget(title_icon)
         title_layout.addWidget(title_label)
         title_layout.addStretch(1)
         content_layout.addLayout(title_layout)
 
+        # Separator
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
         separator.setFrameShadow(QFrame.Sunken)
-        separator.setStyleSheet("background-color: #e0e0e0;")
+        separator.setStyleSheet(WidgetStyles.get_separator_style("neutral"))
         content_layout.addWidget(separator)
 
+        # Form layout
         form_widget = QWidget()
         form_layout = QFormLayout(form_widget)
         form_layout.setContentsMargins(0, 10, 0, 10)
@@ -74,65 +78,73 @@ class FileTranslationDialog(QDialog):
         form_layout.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
+        # File selection layout
         file_layout = QHBoxLayout()
         self.file_edit = QLineEdit()
         self.file_edit.setReadOnly(True)
         self.file_edit.setMinimumHeight(30)
-        self.file_edit.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        self.file_edit.setStyleSheet(WidgetStyles.get_input_style("primary"))
         select_file_btn = QPushButton("Select File")
         select_file_btn.setIcon(self.qta.icon('fa5s.folder-open', color='#555'))
         select_file_btn.clicked.connect(self.select_file)
         select_file_btn.setFixedWidth(120)
-        select_file_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
-            }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
-        """)
+        select_file_btn.setStyleSheet(ButtonStyles.get_secondary_style())
         file_layout.addWidget(self.file_edit, 1)
         file_layout.addWidget(select_file_btn)
-        form_layout.addRow(QLabel("File Path:"), file_layout)
+        file_label = QLabel("File Path:")
+        file_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
+        form_layout.addRow(file_label, file_layout)
 
+        # Book title
         self.title_edit = QLineEdit()
         self.title_edit.setPlaceholderText("Enter book title")
         self.title_edit.setMinimumHeight(30)
-        self.title_edit.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
-        form_layout.addRow(QLabel("Book Title:"), self.title_edit)
+        self.title_edit.setStyleSheet(WidgetStyles.get_input_style("primary"))
+        title_label = QLabel("Book Title:")
+        title_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
+        form_layout.addRow(title_label, self.title_edit)
 
+        # Book author
         self.author_edit = QLineEdit()
         self.author_edit.setPlaceholderText("Enter book author")
         self.author_edit.setMinimumHeight(30)
-        self.author_edit.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
-        form_layout.addRow(QLabel("Book Author:"), self.author_edit)
+        self.author_edit.setStyleSheet(WidgetStyles.get_input_style("primary"))
+        author_label = QLabel("Book Author:")
+        author_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
+        form_layout.addRow(author_label, self.author_edit)
 
+        # Model selection
         self.model_combo = QComboBox()
         self.model_combo.addItems(["gemini-2.0-flash", "gemini-2.0-flash-lite"])
         self.model_combo.setMinimumHeight(30)
-        self.model_combo.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
-        form_layout.addRow(QLabel("Model:"), self.model_combo)
+        self.model_combo.setStyleSheet(WidgetStyles.get_input_style("primary"))
+        model_label = QLabel("Model:")
+        model_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
+        form_layout.addRow(model_label, self.model_combo)
 
+        # Style selection
         self.style_combo = QComboBox()
         self.style_combo.addItem("Modern Style", 1)
         self.style_combo.addItem("China Fantasy Style", 2)
         self.style_combo.setMinimumHeight(30)
-        self.style_combo.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
-        form_layout.addRow(QLabel("Style:"), self.style_combo)
+        self.style_combo.setStyleSheet(WidgetStyles.get_input_style("primary"))
+        style_label = QLabel("Style:")
+        style_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
+        form_layout.addRow(style_label, self.style_combo)
 
+        # Chapter range
         range_layout = QVBoxLayout()
         self.chapter_range_btn = QPushButton("Set Chapter Range")
         self.chapter_range_btn.setIcon(self.qta.icon('fa5s.list-ol', color='#555'))
         self.chapter_range_btn.setCheckable(True)
-        self.chapter_range_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
-            }
-            QPushButton:checked { background-color: #e0f0ff; }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
-        """)
+        self.chapter_range_btn.setStyleSheet(
+            ButtonStyles.get_secondary_style() + f"""
+            QPushButton:checked {{
+                background-color: {WidgetStyles.COLORS["primary"]["light"]};
+                color: {WidgetStyles.COLORS["primary"]["text_light"]};
+            }}
+            """
+        )
         self.chapter_range_btn.clicked.connect(self.toggle_chapter_range)
         range_header = QHBoxLayout()
         range_header.addWidget(self.chapter_range_btn)
@@ -147,55 +159,51 @@ class FileTranslationDialog(QDialog):
         self.start_spin.setRange(1, 9999)
         self.start_spin.setValue(1)
         self.start_spin.setMinimumHeight(28)
-        self.start_spin.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
-        chapter_range_inner.addRow(QLabel("Start Chapter:"), self.start_spin)
+        self.start_spin.setStyleSheet(WidgetStyles.get_input_style("primary"))
+        start_label = QLabel("Start Chapter:")
+        start_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
+        chapter_range_inner.addRow(start_label, self.start_spin)
         self.end_spin = QSpinBox()
         self.end_spin.setRange(1, 9999)
         self.end_spin.setValue(1)
         self.end_spin.setMinimumHeight(28)
-        self.end_spin.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
-        chapter_range_inner.addRow(QLabel("End Chapter:"), self.end_spin)
+        self.end_spin.setStyleSheet(WidgetStyles.get_input_style("primary"))
+        end_label = QLabel("End Chapter:")
+        end_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
+        chapter_range_inner.addRow(end_label, self.end_spin)
         range_layout.addWidget(self.chapter_range_container)
         self.chapter_range_container.hide()
         form_layout.addRow("", range_layout)
 
+        # Output directory
         output_layout = QHBoxLayout()
         self.output_edit = QLineEdit()
         self.output_edit.setText(str(Path.home() / "Downloads"))
         self.output_edit.setMinimumHeight(30)
-        self.output_edit.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        self.output_edit.setStyleSheet(WidgetStyles.get_input_style("primary"))
         browse_btn = QPushButton("Browse")
         browse_btn.setIcon(self.qta.icon('fa5s.folder-open', color='#555'))
         browse_btn.clicked.connect(self.choose_directory)
         browse_btn.setFixedWidth(100)
-        browse_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
-            }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
-        """)
+        browse_btn.setStyleSheet(ButtonStyles.get_secondary_style())
         output_layout.addWidget(self.output_edit, 1)
         output_layout.addWidget(browse_btn)
-        form_layout.addRow(QLabel("Output Directory:"), output_layout)
+        output_label = QLabel("Output Directory:")
+        output_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
+        form_layout.addRow(output_label, output_layout)
         content_layout.addWidget(form_widget)
 
+        # Progress card
         progress_card = QFrame()
         progress_card.setFrameShape(QFrame.StyledPanel)
-        progress_card.setStyleSheet("""
-            QFrame {
-                background-color: #f9f9f9; border: 1px solid #e0e0e0;
-                border-radius: 6px; padding: 12px;
-            }
-        """)
+        progress_card.setStyleSheet(WidgetStyles.get_frame_style("neutral"))
         progress_layout = QVBoxLayout(progress_card)
         progress_layout.setSpacing(10)
         progress_header = QHBoxLayout()
         progress_icon = QLabel()
         progress_icon.setPixmap(self.qta.icon('fa5s.tasks', color='#4a86e8').pixmap(20, 20))
         progress_header_label = QLabel("Progress")
-        progress_header_label.setStyleSheet("font-weight: bold; color: #4a86e8;")
+        progress_header_label.setStyleSheet(WidgetStyles.get_header_label_style("primary"))
         progress_header.addWidget(progress_icon)
         progress_header.addWidget(progress_header_label)
         progress_header.addStretch(1)
@@ -204,6 +212,7 @@ class FileTranslationDialog(QDialog):
         stage_icon = QLabel()
         stage_icon.setPixmap(self.qta.icon('fa5s.info-circle', color='#555').pixmap(16, 16))
         self.stage_label = QLabel("Current Stage: Idle")
+        self.stage_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
         stage_layout.addWidget(stage_icon)
         stage_layout.addWidget(self.stage_label)
         stage_layout.addStretch(1)
@@ -211,49 +220,28 @@ class FileTranslationDialog(QDialog):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setTextVisible(True)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #ccc; border-radius: 4px; text-align: center; height: 20px;
-            }
-            QProgressBar::chunk {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4a86e8, stop:1 #87b7ff);
-                border-radius: 3px;
-            }
-        """)
+        self.progress_bar.setStyleSheet(WidgetStyles.get_progress_bar_style("primary"))
         progress_layout.addWidget(self.progress_bar)
         progress_buttons_layout = QHBoxLayout()
         self.chapter_progress_btn = QPushButton("Chapter Progress")
         self.chapter_progress_btn.setIcon(self.qta.icon('fa5s.chart-bar', color='#555'))
         self.chapter_progress_btn.clicked.connect(self.show_chapter_progress)
-        self.chapter_progress_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
-            }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
-        """)
+        self.chapter_progress_btn.setStyleSheet(ButtonStyles.get_secondary_style())
         self.toggle_log_btn = QPushButton("Collapse Log")
         self.toggle_log_btn.setIcon(self.qta.icon('fa5s.chevron-up', color='#555'))
         self.toggle_log_btn.clicked.connect(self.toggle_log)
-        self.toggle_log_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
-            }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
-        """)
+        self.toggle_log_btn.setStyleSheet(ButtonStyles.get_secondary_style())
         progress_buttons_layout.addWidget(self.chapter_progress_btn)
         progress_buttons_layout.addWidget(self.toggle_log_btn)
         progress_layout.addLayout(progress_buttons_layout)
         content_layout.addWidget(progress_card)
 
+        # Log area
         log_header = QHBoxLayout()
         log_icon = QLabel()
         log_icon.setPixmap(self.qta.icon('fa5s.terminal', color='#4a86e8').pixmap(16, 16))
         log_header_label = QLabel("Progress Log")
-        log_header_label.setStyleSheet("font-weight: bold; color: #4a86e8;")
+        log_header_label.setStyleSheet(WidgetStyles.get_header_label_style("primary"))
         log_header.addWidget(log_icon)
         log_header.addWidget(log_header_label)
         log_header.addStretch(1)
@@ -262,13 +250,10 @@ class FileTranslationDialog(QDialog):
         self.log_area.setReadOnly(True)
         self.log_area.setMinimumHeight(150)
         self.log_area.setFont(QFont("Consolas", 10))
-        self.log_area.setStyleSheet("""
-            QTextEdit {
-                background-color: #f8f8f8; border: 1px solid #ddd; border-radius: 4px; padding: 6px;
-            }
-        """)
+        self.log_area.setStyleSheet(WidgetStyles.get_text_edit_style("neutral"))
         content_layout.addWidget(self.log_area)
 
+        # Main layout setup
         scroll_area = QScrollArea()
         scroll_area.setWidget(content_widget)
         scroll_area.setWidgetResizable(True)
@@ -277,6 +262,7 @@ class FileTranslationDialog(QDialog):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(scroll_area)
 
+        # Bottom buttons
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(15)
         btn_layout.addStretch(1)
@@ -285,28 +271,13 @@ class FileTranslationDialog(QDialog):
         self.start_btn.clicked.connect(self.start_translation)
         self.start_btn.setMinimumWidth(160)
         self.start_btn.setMinimumHeight(36)
-        self.start_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4a86e8; color: #ffffff; font-weight: bold; border: 1px solid #3366cc;
-                border-radius: 6px; padding: 10px 20px; font-size: 14px;
-            }
-            QPushButton:hover { background-color: #3b78de; border: 1px solid #3366cc; }
-            QPushButton:pressed { background-color: #3366cc; border: 1px solid #3366cc; }
-            QPushButton:disabled { background-color: #a0c0e8; color: #ffffff; border: 1px solid #a0c0e8; }
-        """)
+        self.start_btn.setStyleSheet(ButtonStyles.get_primary_style())
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.setIcon(self.qta.icon('fa5s.times', color='white'))
         self.cancel_btn.clicked.connect(self.on_cancel)
         self.cancel_btn.setMinimumWidth(100)
         self.cancel_btn.setMinimumHeight(36)
-        self.cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f44336; color: #ffffff; font-weight: bold; border: 1px solid #c62828;
-                border-radius: 6px; padding: 10px 20px; font-size: 14px;
-            }
-            QPushButton:hover { background-color: #d32f2f; border: 1px solid #c62828; }
-            QPushButton:pressed { background-color: #c62828; border: 1px solid #c62828; }
-        """)
+        self.cancel_btn.setStyleSheet(ButtonStyles.get_danger_style())
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.cancel_btn)
         btn_layout.addStretch(1)

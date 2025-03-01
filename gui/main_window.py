@@ -72,12 +72,9 @@ class MainWindow(QMainWindow):
         dialog.show()
 
     def show_file_translate_dialog(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select Text File", "", "Text Files (*.txt)")
-        if file_path:
-            dialog = FileTranslationDialog.get_instance(self)
-            dialog.set_file_path(file_path)
-            dialog.setModal(False)
-            dialog.show()
+        dialog = FileTranslationDialog.get_instance(self)
+        dialog.setModal(False)
+        dialog.show()
 
     def show_settings(self):
         dialog = SettingsDialog(self)

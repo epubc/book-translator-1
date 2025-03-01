@@ -10,6 +10,7 @@ from pathlib import Path
 from core.translation_thread import TranslationThread
 from core.history_manager import HistoryManager
 from core.utils import QTextEditLogHandler
+from gui.button_styles import ButtonStyles, WidgetStyles
 from gui.progress_dialog import EnhancedProgressDialog
 from gui.source_info_dialog import SourceInfoDialog
 from downloader.factory import DownloaderFactory
@@ -56,7 +57,7 @@ class TranslationDialog(QDialog):
         title_icon = QLabel()
         title_icon.setPixmap(self.qta.icon('fa5s.book-reader', color='#4a86e8').pixmap(32, 32))
         title_label = QLabel("Book Translator")
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #4a86e8;")
+        title_label.setStyleSheet(WidgetStyles.get_title_label_style("primary"))
         title_layout.addWidget(title_icon)
         title_layout.addWidget(title_label)
         title_layout.addStretch(1)
@@ -65,9 +66,10 @@ class TranslationDialog(QDialog):
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
         separator.setFrameShadow(QFrame.Sunken)
-        separator.setStyleSheet("background-color: #e0e0e0;")
+        separator.setStyleSheet(WidgetStyles.get_separator_style())
         content_layout.addWidget(separator)
 
+        # Form layout
         form_widget = QWidget()
         form_layout = QFormLayout(form_widget)
         form_layout.setContentsMargins(0, 10, 0, 10)
@@ -75,52 +77,45 @@ class TranslationDialog(QDialog):
         form_layout.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
+        # URL input with Source Info button
         url_layout = QHBoxLayout()
         self.url_edit = QLineEdit()
         self.url_edit.setPlaceholderText("Enter book URL")
         self.url_edit.setMinimumHeight(30)
-        self.url_edit.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        self.url_edit.setStyleSheet(WidgetStyles.get_input_style("primary"))
         self.source_info_btn = QPushButton("Source Info")
         self.source_info_btn.setIcon(self.qta.icon('fa5s.info-circle', color='#4a86e8'))
         self.source_info_btn.setFixedWidth(120)
         self.source_info_btn.clicked.connect(self.show_source_info)
-        self.source_info_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
-            }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
-        """)
+        self.source_info_btn.setStyleSheet(ButtonStyles.get_secondary_style())
         url_layout.addWidget(self.url_edit, 1)
         url_layout.addWidget(self.source_info_btn)
         form_layout.addRow(QLabel("Book URL:"), url_layout)
 
+        # Model selection (unchanged)
         self.model_combo = QComboBox()
         self.model_combo.addItems(["gemini-2.0-flash", "gemini-2.0-flash-lite"])
         self.model_combo.setMinimumHeight(30)
-        self.model_combo.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        self.model_combo.setStyleSheet(WidgetStyles.get_combo_box_style("primary"))
         form_layout.addRow(QLabel("Model:"), self.model_combo)
 
+        # Style selection (unchanged)
         self.style_combo = QComboBox()
         self.style_combo.addItem("Modern Style", 1)
         self.style_combo.addItem("China Fantasy Style", 2)
         self.style_combo.setMinimumHeight(30)
-        self.style_combo.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        self.style_combo.setStyleSheet(WidgetStyles.get_combo_box_style("primary"))
         form_layout.addRow(QLabel("Style:"), self.style_combo)
 
+        # Chapter range
         range_layout = QVBoxLayout()
         self.chapter_range_btn = QPushButton("Set Chapter Range")
         self.chapter_range_btn.setIcon(self.qta.icon('fa5s.list-ol', color='#555'))
         self.chapter_range_btn.setCheckable(True)
-        self.chapter_range_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
+        self.chapter_range_btn.setStyleSheet(ButtonStyles.get_secondary_style() + """
+            QPushButton:checked {
+                background-color: #90CAF9;
             }
-            QPushButton:checked { background-color: #e0f0ff; }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
         """)
         self.chapter_range_btn.clicked.connect(self.toggle_chapter_range)
         range_header = QHBoxLayout()
@@ -132,63 +127,60 @@ class TranslationDialog(QDialog):
         chapter_range_inner = QFormLayout(self.chapter_range_container)
         chapter_range_inner.setContentsMargins(10, 10, 10, 0)
         chapter_range_inner.setSpacing(10)
+
         self.start_spin = QSpinBox()
         self.start_spin.setRange(1, 9999)
         self.start_spin.setValue(1)
         self.start_spin.setMinimumHeight(28)
-        self.start_spin.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        self.start_spin.setStyleSheet(WidgetStyles.get_input_style("primary"))
         chapter_range_inner.addRow(QLabel("Start Chapter:"), self.start_spin)
+
         self.end_spin = QSpinBox()
         self.end_spin.setRange(1, 9999)
         self.end_spin.setValue(1)
         self.end_spin.setMinimumHeight(28)
-        self.end_spin.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        self.end_spin.setStyleSheet(WidgetStyles.get_input_style("primary"))
         chapter_range_inner.addRow(QLabel("End Chapter:"), self.end_spin)
+
         range_layout.addWidget(self.chapter_range_container)
         self.chapter_range_container.hide()
         form_layout.addRow("", range_layout)
 
+        # Output directory with Browse button
         output_layout = QHBoxLayout()
         self.output_edit = QLineEdit()
         self.output_edit.setText(str(Path.home() / "Downloads"))
         self.output_edit.setMinimumHeight(30)
-        self.output_edit.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        self.output_edit.setStyleSheet(WidgetStyles.get_input_style("primary"))
         browse_btn = QPushButton("Browse")
         browse_btn.setIcon(self.qta.icon('fa5s.folder-open', color='#555'))
         browse_btn.clicked.connect(self.choose_directory)
         browse_btn.setFixedWidth(100)
-        browse_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
-            }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
-        """)
+        browse_btn.setStyleSheet(ButtonStyles.get_secondary_style())
         output_layout.addWidget(self.output_edit, 1)
         output_layout.addWidget(browse_btn)
         form_layout.addRow(QLabel("Output Directory:"), output_layout)
         content_layout.addWidget(form_widget)
 
+        # Progress card
         progress_card = QFrame()
         progress_card.setFrameShape(QFrame.StyledPanel)
-        progress_card.setStyleSheet("""
-            QFrame {
-                background-color: #f9f9f9; border: 1px solid #e0e0e0;
-                border-radius: 6px; padding: 12px;
-            }
-        """)
+        progress_card.setStyleSheet(WidgetStyles.get_frame_style("neutral"))
         progress_layout = QVBoxLayout(progress_card)
         progress_layout.setSpacing(10)
+
+        # Progress header
         progress_header = QHBoxLayout()
         progress_icon = QLabel()
         progress_icon.setPixmap(self.qta.icon('fa5s.tasks', color='#4a86e8').pixmap(20, 20))
         progress_header_label = QLabel("Progress")
-        progress_header_label.setStyleSheet("font-weight: bold; color: #4a86e8;")
+        progress_header_label.setStyleSheet(WidgetStyles.get_header_label_style("primary"))
         progress_header.addWidget(progress_icon)
         progress_header.addWidget(progress_header_label)
         progress_header.addStretch(1)
         progress_layout.addLayout(progress_header)
+
+        # Stage info
         stage_layout = QHBoxLayout()
         stage_icon = QLabel()
         stage_icon.setPixmap(self.qta.icon('fa5s.info-circle', color='#555').pixmap(16, 16))
@@ -197,42 +189,24 @@ class TranslationDialog(QDialog):
         stage_layout.addWidget(self.stage_label)
         stage_layout.addStretch(1)
         progress_layout.addLayout(stage_layout)
+
+        # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setTextVisible(True)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #ccc; border-radius: 4px; text-align: center; height: 20px;
-            }
-            QProgressBar::chunk {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4a86e8, stop:1 #87b7ff);
-                border-radius: 3px;
-            }
-        """)
+        self.progress_bar.setStyleSheet(WidgetStyles.get_progress_bar_style("primary"))
         progress_layout.addWidget(self.progress_bar)
+
+        # Progress buttons
         progress_buttons_layout = QHBoxLayout()
         self.chapter_progress_btn = QPushButton("Chapter Progress")
         self.chapter_progress_btn.setIcon(self.qta.icon('fa5s.chart-bar', color='#555'))
         self.chapter_progress_btn.clicked.connect(self.show_chapter_progress)
-        self.chapter_progress_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
-            }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
-        """)
+        self.chapter_progress_btn.setStyleSheet(ButtonStyles.get_secondary_style())
         self.toggle_log_btn = QPushButton("Collapse Log")
         self.toggle_log_btn.setIcon(self.qta.icon('fa5s.chevron-up', color='#555'))
         self.toggle_log_btn.clicked.connect(self.toggle_log)
-        self.toggle_log_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
-            }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
-        """)
+        self.toggle_log_btn.setStyleSheet(ButtonStyles.get_secondary_style())
         progress_buttons_layout.addWidget(self.chapter_progress_btn)
         progress_buttons_layout.addWidget(self.toggle_log_btn)
         progress_layout.addLayout(progress_buttons_layout)
@@ -242,22 +216,20 @@ class TranslationDialog(QDialog):
         log_icon = QLabel()
         log_icon.setPixmap(self.qta.icon('fa5s.terminal', color='#4a86e8').pixmap(16, 16))
         log_header_label = QLabel("Progress Log")
-        log_header_label.setStyleSheet("font-weight: bold; color: #4a86e8;")
+        log_header_label.setStyleSheet(WidgetStyles.get_header_label_style("primary"))
         log_header.addWidget(log_icon)
         log_header.addWidget(log_header_label)
         log_header.addStretch(1)
         content_layout.addLayout(log_header)
+
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
         self.log_area.setMinimumHeight(150)
         self.log_area.setFont(QFont("Consolas", 10))
-        self.log_area.setStyleSheet("""
-            QTextEdit {
-                background-color: #f8f8f8; border: 1px solid #ddd; border-radius: 4px; padding: 6px;
-            }
-        """)
+        self.log_area.setStyleSheet(WidgetStyles.get_text_edit_style("neutral"))
         content_layout.addWidget(self.log_area)
 
+        # Scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidget(content_widget)
         scroll_area.setWidgetResizable(True)
@@ -266,36 +238,25 @@ class TranslationDialog(QDialog):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(scroll_area)
 
+        # Main buttons
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(15)
         btn_layout.addStretch(1)
+
         self.start_btn = QPushButton("Start Translation")
         self.start_btn.setIcon(self.qta.icon('fa5s.play', color='white'))
         self.start_btn.clicked.connect(self.start_translation)
         self.start_btn.setMinimumWidth(160)
         self.start_btn.setMinimumHeight(36)
-        self.start_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4a86e8; color: #ffffff; font-weight: bold; border: 1px solid #3366cc;
-                border-radius: 6px; padding: 10px 20px; font-size: 14px;
-            }
-            QPushButton:hover { background-color: #3b78de; border: 1px solid #3366cc; }
-            QPushButton:pressed { background-color: #3366cc; border: 1px solid #3366cc; }
-            QPushButton:disabled { background-color: #a0c0e8; color: #ffffff; border: 1px solid #a0c0e8; }
-        """)
+        self.start_btn.setStyleSheet(ButtonStyles.get_primary_style())
+
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.setIcon(self.qta.icon('fa5s.times', color='white'))
         self.cancel_btn.clicked.connect(self.on_cancel)
         self.cancel_btn.setMinimumWidth(100)
         self.cancel_btn.setMinimumHeight(36)
-        self.cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f44336; color: #ffffff; font-weight: bold; border: 1px solid #c62828;
-                border-radius: 6px; padding: 10px 20px; font-size: 14px;
-            }
-            QPushButton:hover { background-color: #d32f2f; border: 1px solid #c62828; }
-            QPushButton:pressed { background-color: #c62828; border: 1px solid #c62828; }
-        """)
+        self.cancel_btn.setStyleSheet(ButtonStyles.get_danger_style())
+
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.cancel_btn)
         btn_layout.addStretch(1)
@@ -340,30 +301,6 @@ class TranslationDialog(QDialog):
                 self.accept()
         else:
             self.reject()
-
-    def closeEvent(self, event):
-        if self.thread and self.thread.isRunning():
-            event.ignore()
-            message_box = QMessageBox(self)
-            message_box.setWindowTitle("Operation in Progress")
-            message_box.setText("Please cancel the current translation before closing.")
-            message_box.setIcon(QMessageBox.Warning)
-            message_box.setStandardButtons(QMessageBox.Ok)
-            message_box.setStyleSheet("""
-                QMessageBox { background-color: white; }
-                QPushButton {
-                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
-                }
-                QPushButton:hover { background-color: #e0f0ff; }
-                QPushButton:pressed { background-color: #d0e0ff; }
-            """)
-            message_box.exec_()
-        else:
-            logging.root.removeHandler(self.log_handler)
-            TranslationDialog.active_instance = None
-            super().closeEvent(event)
-            self.deleteLater()
 
     def choose_directory(self):
         directory = QFileDialog.getExistingDirectory(self, "Select Output Directory")
@@ -417,47 +354,6 @@ class TranslationDialog(QDialog):
         """)
         msg_box.exec_()
 
-    def start_translation(self):
-        if not self.validate_inputs():
-            return
-        start_chapter = self.start_spin.value() if self.chapter_range_btn.isChecked() else None
-        end_chapter = self.end_spin.value() if self.chapter_range_btn.isChecked() else None
-        params = {
-            'task_type': 'web',
-            'book_url': self.url_edit.text(),
-            'model_name': self.model_combo.currentText(),
-            'prompt_style': self.style_combo.currentData(),
-            'start_chapter': start_chapter,
-            'end_chapter': end_chapter,
-            'output_directory': self.output_edit.text(),
-        }
-        self.current_history_id = HistoryManager.add_task({
-            "timestamp": datetime.datetime.now().isoformat(),
-            "task_type": "web",
-            "book_url": self.url_edit.text(),
-            "model_name": self.model_combo.currentText(),
-            "prompt_style": self.style_combo.currentText(),
-            "start_chapter": start_chapter,
-            "end_chapter": end_chapter,
-            "output_directory": self.output_edit.text(),
-            "status": "In Progress",
-            "current_stage": "Starting",
-            "progress": 0
-        })
-        params['task_id'] = self.current_history_id
-        self.start_btn.setEnabled(False)
-        self.start_btn.setText("Translating...")
-        self.start_btn.setIcon(self.qta.icon('fa5s.spinner', color='white', animation=self.qta.Spin(self.start_btn)))
-        self.log_area.clear()
-        self.log_area.append("Starting translation process...")
-        self.stage_label.setText("Current Stage: Initializing")
-        self.progress_bar.setValue(0)
-        self.thread = TranslationThread(params)
-        self.thread.update_log.connect(self.update_log)
-        self.thread.finished.connect(self.on_finished)
-        self.thread.stage_update.connect(self.on_stage_update)
-        self.thread.update_progress.connect(self.on_progress_update)
-        self.thread.start()
 
     @pyqtSlot(str)
     def on_stage_update(self, stage):
@@ -475,6 +371,10 @@ class TranslationDialog(QDialog):
         self.log_area.append(message)
 
     def on_finished(self, success, epub_path):
+        # Unregister task from active tasks
+        if self.current_history_id:
+            HistoryManager.unregister_active_task(self.current_history_id)
+
         self.start_btn.setEnabled(True)
         self.start_btn.setText("Start Translation")
         self.start_btn.setIcon(self.qta.icon('fa5s.play', color='white'))
@@ -535,6 +435,88 @@ class TranslationDialog(QDialog):
         if self.current_history_id:
             HistoryManager.update_task(self.current_history_id, {"status": "Success" if success else "Error"})
 
+    def closeEvent(self, event):
+        active_task_count = HistoryManager.get_active_task_count()
+
+        if active_task_count > 0:
+            event.ignore()
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Operations in Progress")
+
+            if active_task_count == 1 and self.thread and self.thread.isRunning():
+                # Just our task is running
+                msg_box.setText("Translation is in progress. What would you like to do?")
+                continue_btn = msg_box.addButton("Continue in Background", QMessageBox.ActionRole)
+                stop_btn = msg_box.addButton("Stop and Close", QMessageBox.DestructiveRole)
+                cancel_btn = msg_box.addButton("Cancel", QMessageBox.RejectRole)
+
+                continue_btn.setIcon(self.qta.icon('fa5s.external-link-alt', color='#4a86e8'))
+                stop_btn.setIcon(self.qta.icon('fa5s.stop', color='#f44336'))
+                cancel_btn.setIcon(self.qta.icon('fa5s.times', color='#555'))
+            else:
+                # Multiple tasks are running
+                msg_box.setText(f"{active_task_count} translations are in progress. What would you like to do?")
+                continue_btn = msg_box.addButton("Continue All in Background", QMessageBox.ActionRole)
+                stop_btn = msg_box.addButton("Stop All and Close", QMessageBox.DestructiveRole)
+                cancel_btn = msg_box.addButton("Cancel", QMessageBox.RejectRole)
+
+                continue_btn.setIcon(self.qta.icon('fa5s.external-link-alt', color='#4a86e8'))
+                stop_btn.setIcon(self.qta.icon('fa5s.stop', color='#f44336'))
+                cancel_btn.setIcon(self.qta.icon('fa5s.times', color='#555'))
+
+            msg_box.setDefaultButton(continue_btn)
+            msg_box.setStyleSheet("""
+                QMessageBox { background-color: white; }
+                QPushButton {
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
+                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
+            """)
+
+            reply = msg_box.exec_()
+
+            if msg_box.clickedButton() == continue_btn:
+                # Detach from current thread but keep it running
+                if self.thread and self.thread.isRunning():
+                    # Disconnect all signals but don't stop the thread
+                    try:
+                        self.thread.update_log.disconnect(self.update_log)
+                        self.thread.finished.disconnect(self.on_finished)
+                        self.thread.stage_update.disconnect(self.on_stage_update)
+                        self.thread.update_progress.disconnect(self.on_progress_update)
+                    except (TypeError, RuntimeError):
+                        pass  # Signals may already be disconnected
+
+                # Close the dialog but let tasks continue
+                logging.root.removeHandler(self.log_handler)
+                TranslationDialog.active_instance = None
+                super().closeEvent(event)
+                self.deleteLater()
+            elif msg_box.clickedButton() == stop_btn:
+                # Stop all tasks
+                HistoryManager.stop_all_active_tasks()
+                self.log_area.append("Stopping all translation tasks...")
+
+                # Give a moment for tasks to clean up
+                QMessageBox.information(self, "Stopping Tasks",
+                                        "Stopping all translation tasks. Please wait a moment...")
+
+                # Actually close
+                logging.root.removeHandler(self.log_handler)
+                TranslationDialog.active_instance = None
+                super().closeEvent(event)
+                self.deleteLater()
+            else:  # User clicked Cancel
+                pass  # Don't close
+        else:
+            # No tasks running, close normally
+            logging.root.removeHandler(self.log_handler)
+            TranslationDialog.active_instance = None
+            super().closeEvent(event)
+            self.deleteLater()
+
     def show_chapter_progress(self):
         if not self.thread or not self.thread.file_handler:
             self.show_error_message("Unavailable", "Chapter progress is not available at this time.")
@@ -563,7 +545,114 @@ class TranslationDialog(QDialog):
         dialog = SourceInfoDialog(self)
         dialog.exec_()
 
+    def start_translation(self):
+        if not self.validate_inputs():
+            return
+
+        # If there's already a thread running, stop it
+        if self.thread and self.thread.isRunning():
+            self.thread.stop()
+            self.log_area.append("Stopping previous translation...")
+
+        start_chapter = self.start_spin.value() if self.chapter_range_btn.isChecked() else None
+        end_chapter = self.end_spin.value() if self.chapter_range_btn.isChecked() else None
+        params = {
+            'task_type': 'web',
+            'book_url': self.url_edit.text(),
+            'model_name': self.model_combo.currentText(),
+            'prompt_style': self.style_combo.currentData(),
+            'start_chapter': start_chapter,
+            'end_chapter': end_chapter,
+            'output_directory': self.output_edit.text(),
+        }
+        self.current_history_id = HistoryManager.add_task({
+            "timestamp": datetime.datetime.now().isoformat(),
+            "task_type": "web",
+            "book_url": self.url_edit.text(),
+            "model_name": self.model_combo.currentText(),
+            "prompt_style": self.style_combo.currentText(),
+            "start_chapter": start_chapter,
+            "end_chapter": end_chapter,
+            "output_directory": self.output_edit.text(),
+            "status": "In Progress",
+            "current_stage": "Starting",
+            "progress": 0
+        })
+        params['task_id'] = self.current_history_id
+        self.start_btn.setEnabled(False)
+        self.start_btn.setText("Translating...")
+        self.start_btn.setIcon(self.qta.icon('fa5s.spinner', color='white', animation=self.qta.Spin(self.start_btn)))
+        self.log_area.clear()
+        self.log_area.append("Starting translation process...")
+        self.stage_label.setText("Current Stage: Initializing")
+        self.progress_bar.setValue(0)
+        self.thread = TranslationThread(params)
+        self.thread.update_log.connect(self.update_log)
+        self.thread.finished.connect(self.on_finished)
+        self.thread.stage_update.connect(self.on_stage_update)
+        self.thread.update_progress.connect(self.on_progress_update)
+
+        # Register this task as active with the HistoryManager
+        HistoryManager.register_active_task(self.current_history_id, self.thread)
+
+        self.thread.start()
+
     def load_task(self, task):
+        task_id = task.get("id")
+
+        # Check if this task is already running
+        if HistoryManager.is_task_active(task_id):
+            # If it's the same as our current task, just update UI
+            if self.current_history_id == task_id and self.thread and self.thread.isRunning():
+                self.log_area.append("Task is already running.")
+                return
+
+            # If it's a different task that's running, ask user what to do
+            message_box = QMessageBox(self)
+            message_box.setWindowTitle('Task In Progress')
+            message_box.setText('This task is already running in another window. What would you like to do?')
+            message_box.setIcon(QMessageBox.Question)
+
+            connect_btn = message_box.addButton("Connect to Task", QMessageBox.ActionRole)
+            stop_btn = message_box.addButton("Stop Current Task", QMessageBox.DestructiveRole)
+            cancel_btn = message_box.addButton("Cancel", QMessageBox.RejectRole)
+
+            connect_btn.setIcon(self.qta.icon('fa5s.link', color='#4a86e8'))
+            stop_btn.setIcon(self.qta.icon('fa5s.stop', color='#f44336'))
+            cancel_btn.setIcon(self.qta.icon('fa5s.times', color='#555'))
+
+            message_box.setDefaultButton(connect_btn)
+            message_box.setStyleSheet("""
+                QMessageBox { background-color: white; }
+                QPushButton {
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
+                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
+            """)
+
+            reply = message_box.exec_()
+
+            if message_box.clickedButton() == stop_btn:
+                # Stop the existing task
+                HistoryManager.stop_task_if_active(task_id)
+                self.log_area.append(f"Stopped task: {task_id}")
+            elif message_box.clickedButton() == cancel_btn:
+                return
+            # else: connect to the task
+
+        # If we have an active thread, disconnect and clean up
+        if self.thread and self.thread.isRunning() and self.current_history_id != task_id:
+            # Disconnect signals
+            self.thread.update_log.disconnect(self.update_log)
+            self.thread.finished.disconnect(self.on_finished)
+            self.thread.stage_update.disconnect(self.on_stage_update)
+            self.thread.update_progress.disconnect(self.on_progress_update)
+
+            self.log_area.append("Disconnected from previous task.")
+
+        # Set form fields
         self.url_edit.setText(task.get("book_url", ""))
         model_name = task.get("model_name", "gemini-2.0-flash")
         index = self.model_combo.findText(model_name)
@@ -587,8 +676,55 @@ class TranslationDialog(QDialog):
             end_value = max(1, int(end))
             self.end_spin.setValue(end_value)
         self.output_edit.setText(task.get("output_directory", str(Path.home() / "Downloads")))
-        self.start_btn.setEnabled(True)
-        self.start_btn.setText("Start Translation")
-        self.start_btn.setIcon(self.qta.icon('fa5s.play', color='white'))
-        self.progress_bar.setValue(0)
-        self.stage_label.setText("Current Stage: Idle")
+
+        # Update the UI based on task status
+        status = task.get("status", "Idle")
+        progress = task.get("progress", 0)
+        current_stage = task.get("current_stage", "Idle")
+
+        # Update UI based on task status
+        self.current_history_id = task_id
+        self.progress_bar.setValue(progress)
+        self.stage_label.setText(f"Current Stage: {current_stage}")
+
+        # Try to connect to existing thread if task is active
+        if HistoryManager.is_task_active(task_id):
+            active_thread = HistoryManager._active_tasks.get(task_id)
+            if active_thread:
+                self.thread = active_thread
+                self.log_area.clear()
+                self.log_area.append(f"Connected to running task: {task_id}")
+                self.log_area.append(f"Current stage: {current_stage}")
+
+                # Connect signals
+                self.thread.update_log.connect(self.update_log)
+                self.thread.finished.connect(self.on_finished)
+                self.thread.stage_update.connect(self.on_stage_update)
+                self.thread.update_progress.connect(self.on_progress_update)
+
+                # Update UI
+                self.start_btn.setEnabled(False)
+                self.start_btn.setText("Translating...")
+                self.start_btn.setIcon(
+                    self.qta.icon('fa5s.spinner', color='white', animation=self.qta.Spin(self.start_btn)))
+            else:
+                # Something's wrong with tracking
+                self.log_area.append("Warning: Task marked active but thread not found!")
+                self.start_btn.setEnabled(True)
+                self.start_btn.setText("Start Translation")
+                self.start_btn.setIcon(self.qta.icon('fa5s.play', color='white'))
+        elif status == "In Progress":
+            # Task is marked as in progress but not tracked as active - might have crashed
+            self.log_area.append("Warning: Task was in progress but is no longer running. It may have crashed.")
+            self.start_btn.setEnabled(True)
+            self.start_btn.setText("Restart Translation")
+            self.start_btn.setIcon(self.qta.icon('fa5s.redo', color='white'))
+        else:
+            # Normal inactive task
+            self.start_btn.setEnabled(True)
+            self.start_btn.setText("Start Translation")
+            self.start_btn.setIcon(self.qta.icon('fa5s.play', color='white'))
+            if status == "Success":
+                self.log_area.append("This task completed successfully.")
+            elif status == "Error":
+                self.log_area.append("This task completed with errors.")

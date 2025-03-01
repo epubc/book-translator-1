@@ -3,6 +3,9 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLa
 from PyQt5.QtCore import Qt, QSize
 import qtawesome as qta
 
+from gui.button_styles import ButtonStyles
+
+
 class EnhancedProgressDialog(QDialog):
     def __init__(self, get_status_func, parent=None):
         super().__init__(parent)
@@ -116,36 +119,14 @@ class EnhancedProgressDialog(QDialog):
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setIcon(qta.icon("mdi.refresh", color="#1565C0"))
         refresh_btn.setIconSize(QSize(16, 16))
-        refresh_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E3F2FD;
-                color: #1565C0;
-                padding: 8px 15px;
-                border-radius: 5px;
-                border: 1px solid #BBDEFB;
-            }
-            QPushButton:hover {
-                background-color: #BBDEFB;
-            }
-        """)
+        refresh_btn.setStyleSheet(ButtonStyles.get_secondary_style())
         refresh_btn.clicked.connect(self.refresh_status)
         button_layout.addWidget(refresh_btn)
 
         close_btn = QPushButton("Close")
         close_btn.setIcon(qta.icon("mdi.close", color="#424242"))
         close_btn.setIconSize(QSize(16, 16))
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #F5F5F5;
-                color: #424242;
-                padding: 8px 15px;
-                border-radius: 5px;
-                border: 1px solid #E0E0E0;
-            }
-            QPushButton:hover {
-                background-color: #E0E0E0;
-            }
-        """)
+        close_btn.setStyleSheet(ButtonStyles.get_neutral_style())
         close_btn.clicked.connect(self.accept)
         button_layout.addWidget(close_btn)
 

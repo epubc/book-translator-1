@@ -61,6 +61,7 @@ class BaseBookDownloader(ABC):
         self.book_dir = output_dir / f"{self.__class__.name}/book_{self.book_id}"
         self.book_dir.mkdir(parents=True, exist_ok=True)
         self._state_lock = threading.Lock()
+        self.stop_flag = False
 
         # Store start_chapter and end_chapter as instance variables
         self.start_chapter = start_chapter
@@ -75,6 +76,12 @@ class BaseBookDownloader(ABC):
             self._initialize_book()
         else:
             self.book_info = BookInfo.from_dict(self.state.get('book_info', {}))
+
+
+    def stop(self) -> None:
+        """Gracefully stop the download process."""
+        with self._state_lock:
+            self.stop_flag = True
 
     def _init_requests_session(self) -> requests.Session:
         """Initialize a new session with current settings."""
@@ -119,6 +126,9 @@ class BaseBookDownloader(ABC):
 
         batch_size = self.concurrent_downloads
         for i in range(0, len(unprocessed), batch_size):
+            if self.stop_flag:
+                logging.info("Download stopped gracefully.")
+                break
             batch = unprocessed[i:i + batch_size]
             with ThreadPoolExecutor(max_workers=batch_size) as executor:
                 futures = {
@@ -157,6 +167,10 @@ class BaseBookDownloader(ABC):
 
     def _process_chapter(self, chapter_num: int, chapter_url: str) -> None:
         """Common processing for both download modes."""
+        if self.stop_flag:
+            logging.debug(f"Stop flag set. Skipping chapter {chapter_num}.")
+            return
+
         content = self._download_chapter_with_retry(chapter_url)
 
         with self._state_lock:
@@ -172,6 +186,8 @@ class BaseBookDownloader(ABC):
     def _download_chapter_with_retry(self, chapter_url: str) -> Optional[str]:
         """Retry logic with subclass-configurable delays."""
         for attempt in range(1, settings.DOWNLOAD_MAX_RETRIES + 1):
+            if self.stop_flag:
+                return None
             session = self._init_requests_session()
             try:
                 content = self._download_chapter_content(session, chapter_url)

@@ -16,7 +16,7 @@ from config.prompts import NAME_PROMPT
 from config.settings import TRANSLATION_INTERVAL_SECONDS
 from translator.file_handler import FileHandler
 from translator.helper import is_in_chapter_range
-from translator.text_processing import clean_filename, normalize_translation, validate_translation_quality, \
+from translator.text_processing import normalize_translation, validate_translation_quality, \
     preprocess_raw_text
 
 
@@ -103,7 +103,12 @@ class Translator:
         while tasks and not self._stop_requested:
             self._enforce_rate_limit(progress_data, len(tasks))
             batch_index += 1
-            batch, tasks = self._get_batch(tasks, self.batch_size)
+            batch = tasks[:self.batch_size]
+            if self.has_processed_tasks(batch):
+                tasks = self._prepare_tasks(start_chapter, end_chapter)
+                batch = tasks[:self.batch_size]
+            tasks = tasks[self.batch_size:]
+
             logging.info("Processing batch %d with %d tasks", batch_index, len(batch))
             logging.info(f"Tasks in this batch: {[task.filename for task in batch]}")
 
@@ -140,11 +145,6 @@ class Translator:
             time.sleep(remaining)
 
 
-    def _get_batch(self, tasks: List[TranslationTask], batch_size: int) -> Tuple[
-        List[TranslationTask], List[TranslationTask]]:
-        """Split tasks into batches respecting maximum size."""
-        return tasks[:batch_size], tasks[batch_size:]
-
     def _prepare_tasks(
             self,
             start_chapter: Optional[int] = None,
@@ -154,19 +154,28 @@ class Translator:
         prompts_dir = self.file_handler.get_path("prompt_files")
         responses_dir = self.file_handler.get_path("translation_responses")
 
-        existing_responses = {
-            clean_filename(f.stem)
-            for f in responses_dir.glob("*.txt")
-        }
+        existing_responses = [f.stem for f in responses_dir.glob("*.txt")]
 
         tasks = [
             TranslationTask(f.name, self.file_handler.load_prompt_file_content(f.name))
             for f in prompts_dir.glob("*.txt")
-            if (clean_filename(f.stem) not in existing_responses and
+            if (f.stem not in existing_responses and
                 is_in_chapter_range(f.name, start_chapter, end_chapter))
         ]
 
         return sorted(tasks, key=lambda t: t.filename)
+
+    def has_processed_tasks(
+            self,
+            batch: List[TranslationTask],
+    ) ->bool:
+        responses_dir = self.file_handler.get_path("translation_responses")
+        existing_responses = [f.name for f in responses_dir.glob("*.txt")]
+
+        processed_tasks = [
+            task for task in batch if task.filename in existing_responses
+        ]
+        return len(processed_tasks) > 0
 
 
     def _process_task(
