@@ -15,10 +15,12 @@ from PyQt5.QtGui import QFont, QTextCursor, QDesktopServices
 
 from logger import logging_utils
 from translator.core import Translator
-from translator.file_handler import FileHandler
+from translator.file_handler import FileHandler, FileSplitter
 from downloader.factory import DownloaderFactory
 from config.models import get_model_config
 import qtawesome as qta
+
+from translator.text_processing import normalize_unicode_text
 
 # Stylesheets remain unchanged
 light_stylesheet = """
@@ -107,7 +109,6 @@ QTableWidget {
 }
 """
 
-# HistoryManager class remains unchanged
 class HistoryManager:
     @classmethod
     def get_history_file(cls):
@@ -137,11 +138,19 @@ class HistoryManager:
     @classmethod
     def add_task(cls, task):
         history = cls.load_history()
-        for existing in history:
-            if existing.get("book_url") == task.get("book_url"):
-                existing.update(task)
-                cls.save_history(history)
-                return existing.get("id")
+        task_type = task.get("task_type")
+        if task_type == "web":
+            for existing in history:
+                if existing.get("task_type") == "web" and existing.get("book_url") == task.get("book_url"):
+                    existing.update(task)
+                    cls.save_history(history)
+                    return existing.get("id")
+        elif task_type == "file":
+            for existing in history:
+                if existing.get("task_type") == "file" and existing.get("file_path") == task.get("file_path"):
+                    existing.update(task)
+                    cls.save_history(history)
+                    return existing.get("id")
         task["id"] = str(uuid.uuid4())
         history.append(task)
         cls.save_history(history)
@@ -175,6 +184,7 @@ class QTextEditLogHandler(QObject, logging.Handler):
         msg = self.format(record)
         self.log_signal.emit(msg)
 
+
 class TranslationThread(QThread):
     update_log = pyqtSignal(str)
     update_progress = pyqtSignal(int)
@@ -194,23 +204,41 @@ class TranslationThread(QThread):
             self.stage_update.emit("Initializing...")
             self.update_progress.emit(5)
 
-            book_url = self.params['book_url']
             output_dir = Path(self.params['output_directory'])
-            start_chapter = self.params['start_chapter']
-            end_chapter = self.params['end_chapter']
+            start_chapter = self.params.get('start_chapter')
+            end_chapter = self.params.get('end_chapter')
             model_config = get_model_config(self.params['model_name'])
 
-            self.stage_update.emit("Creating downloader...")
-            self.downloader = DownloaderFactory.create_downloader(
-                url=book_url,
-                output_dir=output_dir,
-                start_chapter=start_chapter,
-                end_chapter=end_chapter,
-            )
-            if not self._is_running:
-                return
-            book_info = self.downloader.book_info
-            book_dir = self.downloader.book_dir
+            if self.params.get('task_type') == 'web':
+                book_url = self.params['book_url']
+                self.stage_update.emit("Creating downloader...")
+                self.downloader = DownloaderFactory.create_downloader(
+                    url=book_url,
+                    output_dir=output_dir,
+                    start_chapter=start_chapter,
+                    end_chapter=end_chapter,
+                )
+                if not self._is_running:
+                    return
+                book_info = self.downloader.book_info
+                book_dir = self.downloader.book_dir
+                self.stage_update.emit("Downloading chapters...")
+                self.downloader.download_book()
+            elif self.params.get('task_type') == 'file':
+                file_path = self.params['file_path']
+                book_title = self.params['book_title']
+                book_author = self.params['book_author']
+                book_dir = output_dir / book_title.replace('/', '_').replace('\\', '_')
+                book_dir.mkdir(parents=True, exist_ok=True)
+                self.stage_update.emit("Splitting file into chapters...")
+                splitter = FileSplitter(file_path, book_dir)
+                splitter.split_chapters()
+                book_info = type('BookInfo', (), {'title': book_title, 'author': book_author, 'cover_img': None})()
+            else:
+                raise ValueError("Invalid task_type")
+
+            if 'task_id' in self.params:
+                HistoryManager.update_task(self.params['task_id'], {"book_title": book_info.title})
 
             logging_utils.configure_logging(
                 book_dir,
@@ -229,26 +257,23 @@ class TranslationThread(QThread):
                 file_handler=self.file_handler
             )
 
-            self.stage_update.emit("Downloading chapters")
-            self.update_progress.emit(25)
-            if not self._is_running:
-                return
-            self.downloader.download_book()
-
-            self.stage_update.emit("Creating prompts")
+            self.stage_update.emit("Creating prompts...")
             self.update_progress.emit(50)
             if not self._is_running:
                 return
             self.file_handler.create_prompt_files_from_chapters(start_chapter=start_chapter, end_chapter=end_chapter)
 
-            self.stage_update.emit("Translating content")
+            self.stage_update.emit("Translating content...")
             self.update_progress.emit(75)
             if not self._is_running:
                 return
-            self.translator.process_book_translation(prompt_style=self.params['prompt_style'],
-                                                     start_chapter=start_chapter, end_chapter=end_chapter)
+            self.translator.process_book_translation(
+                prompt_style=self.params['prompt_style'],
+                start_chapter=start_chapter,
+                end_chapter=end_chapter
+            )
 
-            self.stage_update.emit("Generating EPUB")
+            self.stage_update.emit("Generating EPUB...")
             self.update_progress.emit(95)
             if not self._is_running:
                 return
@@ -291,10 +316,9 @@ class EnhancedProgressDialog(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)  # Increased margins for better spacing
-        layout.setSpacing(15)  # Increased spacing
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
 
-        # Enhanced summary section with card-like appearance
         summary_frame = QFrame()
         summary_frame.setFrameShape(QFrame.StyledPanel)
         summary_frame.setFrameShadow(QFrame.Raised)
@@ -306,19 +330,17 @@ class EnhancedProgressDialog(QDialog):
             }
         """)
         summary_layout = QHBoxLayout(summary_frame)
-        summary_layout.setSpacing(20)  # Increased spacing between summary items
+        summary_layout.setSpacing(20)
 
         total_chapters = len(self.chapter_status)
         completed_chapters = sum(1 for _, info in self.chapter_status.items() if info.get("progress", 0) == 100)
         in_progress = sum(1 for _, info in self.chapter_status.items() if 0 < info.get("progress", 0) < 100)
         avg_progress = sum(info.get("progress", 0) for _, info in self.chapter_status.items()) / max(1, total_chapters)
 
-        # Enhanced status widgets with icons
         total_label = self.create_stat_widget("Total Chapters", str(total_chapters), "mdi.book-open-variant")
         completed_label = self.create_stat_widget("Completed", str(completed_chapters), "mdi.check-circle", "green")
         pending_label = self.create_stat_widget("In Progress", str(in_progress), "mdi.progress-clock", "blue")
 
-        # Improved progress bar
         progress_frame = QFrame()
         progress_layout = QVBoxLayout(progress_frame)
         progress_title = QLabel("<b>Overall Progress</b>")
@@ -349,7 +371,6 @@ class EnhancedProgressDialog(QDialog):
         summary_layout.addWidget(progress_frame)
         layout.addWidget(summary_frame)
 
-        # Improved tab widget
         tab_widget = QTabWidget()
         tab_widget.setStyleSheet("""
             QTabWidget::pane {
@@ -375,11 +396,10 @@ class EnhancedProgressDialog(QDialog):
         scroll_widget = QWidget()
         scroll_layout = QVBoxLayout(scroll_widget)
         scroll_layout.setContentsMargins(5, 5, 5, 5)
-        scroll_layout.setSpacing(15)  # Increased spacing between chapters
+        scroll_layout.setSpacing(15)
 
         sorted_chapters = sorted(self.chapter_status.items(),
-                                 key=lambda x: int(x[0].split()[-1].isdigit() and x[0].split()[-1] or 0) if x[
-                                     0].split() else 0)
+                                 key=lambda x: int(x[0].split()[-1].isdigit() and x[0].split()[-1] or 0) if x[0].split() else 0)
 
         for chapter, info in sorted_chapters:
             chapter_frame = self.create_chapter_frame(chapter, info)
@@ -392,7 +412,6 @@ class EnhancedProgressDialog(QDialog):
 
         layout.addWidget(tab_widget)
 
-        # Improved button layout
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
@@ -414,7 +433,6 @@ class EnhancedProgressDialog(QDialog):
         refresh_btn.clicked.connect(self.refresh_status)
         button_layout.addWidget(refresh_btn)
 
-        # Close Button
         close_btn = QPushButton("Close")
         close_btn.setIcon(qta.icon("mdi.close", color="#424242"))
         close_btn.setIconSize(QSize(16, 16))
@@ -439,7 +457,6 @@ class EnhancedProgressDialog(QDialog):
         self.setLayout(layout)
 
     def create_stat_widget(self, title, value, icon_name, color=None):
-        """Create a styled stat widget with icon and value"""
         widget = QFrame()
         layout = QVBoxLayout(widget)
         layout.setSpacing(5)
@@ -467,7 +484,6 @@ class EnhancedProgressDialog(QDialog):
         return widget
 
     def create_chapter_frame(self, chapter, info):
-        """Create a styled chapter frame"""
         chapter_frame = QFrame()
         chapter_frame.setFrameShape(QFrame.StyledPanel)
         chapter_frame.setStyleSheet("""
@@ -482,7 +498,6 @@ class EnhancedProgressDialog(QDialog):
 
         header_layout = QHBoxLayout()
 
-        # Chapter icon and title
         icon_label = QLabel()
         progress_value = int(info.get("progress", 0))
         if progress_value == 100:
@@ -554,15 +569,11 @@ class EnhancedProgressDialog(QDialog):
         return chapter_frame
 
     def refresh_status(self):
-        """Refresh the status data and update UI"""
         self.chapter_status = self.get_status_func()
-        # Clear and rebuild UI
         self.close()
         new_dialog = EnhancedProgressDialog(self.get_status_func, self.parent())
         new_dialog.show()
         self.accept()
-
-
 
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
@@ -633,7 +644,6 @@ class SettingsDialog(QDialog):
         QMessageBox.information(self, "Success", "Settings saved successfully!")
         self.accept()
 
-
 class TranslationDialog(QDialog):
     active_instance = None
 
@@ -650,11 +660,7 @@ class TranslationDialog(QDialog):
         self.thread = None
         self.log_handler = None
         self.current_history_id = None
-
-        # Setup QtAwesome
-        import qtawesome as qta
         self.qta = qta
-
         self.init_ui()
         self.setup_logging()
         TranslationDialog.active_instance = self
@@ -670,13 +676,11 @@ class TranslationDialog(QDialog):
         self.log_area.ensureCursorVisible()
 
     def init_ui(self):
-        # Main content widget for scrollable area
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(20, 20, 20, 20)
         content_layout.setSpacing(12)
 
-        # Title section
         title_layout = QHBoxLayout()
         title_icon = QLabel()
         title_icon.setPixmap(self.qta.icon('fa5s.book-reader', color='#4a86e8').pixmap(32, 32))
@@ -687,14 +691,12 @@ class TranslationDialog(QDialog):
         title_layout.addStretch(1)
         content_layout.addLayout(title_layout)
 
-        # Add a separator line
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
         separator.setFrameShadow(QFrame.Sunken)
         separator.setStyleSheet("background-color: #e0e0e0;")
         content_layout.addWidget(separator)
 
-        # Create a form layout for input fields
         form_widget = QWidget()
         form_layout = QFormLayout(form_widget)
         form_layout.setContentsMargins(0, 10, 0, 10)
@@ -702,7 +704,6 @@ class TranslationDialog(QDialog):
         form_layout.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
-        # URL input with "Source Info" button
         url_layout = QHBoxLayout()
         self.url_edit = QLineEdit()
         self.url_edit.setPlaceholderText("Enter book URL")
@@ -714,32 +715,22 @@ class TranslationDialog(QDialog):
         self.source_info_btn.clicked.connect(self.show_source_info)
         self.source_info_btn.setStyleSheet("""
             QPushButton {
-                background-color: #f0f8ff;
-                color: #333333;
-                border: 1px solid #ccc;
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-size: 13px;
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
             }
-            QPushButton:hover {
-                background-color: #e0f0ff;
-            }
-            QPushButton:pressed {
-                background-color: #d0e0ff;
-            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
         """)
         url_layout.addWidget(self.url_edit, 1)
         url_layout.addWidget(self.source_info_btn)
         form_layout.addRow(QLabel("Book URL:"), url_layout)
 
-        # Model selection
         self.model_combo = QComboBox()
         self.model_combo.addItems(["gemini-2.0-flash", "gemini-2.0-flash-lite"])
         self.model_combo.setMinimumHeight(30)
         self.model_combo.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
         form_layout.addRow(QLabel("Model:"), self.model_combo)
 
-        # Style selection
         self.style_combo = QComboBox()
         self.style_combo.addItem("Modern Style", 1)
         self.style_combo.addItem("China Fantasy Style", 2)
@@ -747,29 +738,18 @@ class TranslationDialog(QDialog):
         self.style_combo.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
         form_layout.addRow(QLabel("Style:"), self.style_combo)
 
-        # Chapter range section
         range_layout = QVBoxLayout()
         self.chapter_range_btn = QPushButton("Set Chapter Range")
         self.chapter_range_btn.setIcon(self.qta.icon('fa5s.list-ol', color='#555'))
         self.chapter_range_btn.setCheckable(True)
         self.chapter_range_btn.setStyleSheet("""
             QPushButton {
-                background-color: #f0f8ff;
-                color: #333333;
-                border: 1px solid #ccc;
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-size: 13px;
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
             }
-            QPushButton:checked {
-                background-color: #e0f0ff;
-            }
-            QPushButton:hover {
-                background-color: #e0f0ff;
-            }
-            QPushButton:pressed {
-                background-color: #d0e0ff;
-            }
+            QPushButton:checked { background-color: #e0f0ff; }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
         """)
         self.chapter_range_btn.clicked.connect(self.toggle_chapter_range)
         range_header = QHBoxLayout()
@@ -777,7 +757,6 @@ class TranslationDialog(QDialog):
         range_header.addStretch(1)
         range_layout.addLayout(range_header)
 
-        # Chapter spinners container
         self.chapter_range_container = QWidget()
         chapter_range_inner = QFormLayout(self.chapter_range_container)
         chapter_range_inner.setContentsMargins(10, 10, 10, 0)
@@ -795,10 +774,9 @@ class TranslationDialog(QDialog):
         self.end_spin.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
         chapter_range_inner.addRow(QLabel("End Chapter:"), self.end_spin)
         range_layout.addWidget(self.chapter_range_container)
-        self.chapter_range_container.hide()  # Initially hidden
+        self.chapter_range_container.hide()
         form_layout.addRow("", range_layout)
 
-        # Output directory selection with browse button
         output_layout = QHBoxLayout()
         self.output_edit = QLineEdit()
         self.output_edit.setText(str(Path.home() / "Downloads"))
@@ -810,34 +788,23 @@ class TranslationDialog(QDialog):
         browse_btn.setFixedWidth(100)
         browse_btn.setStyleSheet("""
             QPushButton {
-                background-color: #f0f8ff;
-                color: #333333;
-                border: 1px solid #ccc;
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-size: 13px;
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
             }
-            QPushButton:hover {
-                background-color: #e0f0ff;
-            }
-            QPushButton:pressed {
-                background-color: #d0e0ff;
-            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
         """)
         output_layout.addWidget(self.output_edit, 1)
         output_layout.addWidget(browse_btn)
         form_layout.addRow(QLabel("Output Directory:"), output_layout)
         content_layout.addWidget(form_widget)
 
-        # Card-style progress section
         progress_card = QFrame()
         progress_card.setFrameShape(QFrame.StyledPanel)
         progress_card.setStyleSheet("""
             QFrame {
-                background-color: #f9f9f9;
-                border: 1px solid #e0e0e0;
-                border-radius: 6px;
-                padding: 12px;
+                background-color: #f9f9f9; border: 1px solid #e0e0e0;
+                border-radius: 6px; padding: 12px;
             }
         """)
         progress_layout = QVBoxLayout(progress_card)
@@ -864,10 +831,7 @@ class TranslationDialog(QDialog):
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setStyleSheet("""
             QProgressBar {
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                text-align: center;
-                height: 20px;
+                border: 1px solid #ccc; border-radius: 4px; text-align: center; height: 20px;
             }
             QProgressBar::chunk {
                 background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4a86e8, stop:1 #87b7ff);
@@ -881,45 +845,28 @@ class TranslationDialog(QDialog):
         self.chapter_progress_btn.clicked.connect(self.show_chapter_progress)
         self.chapter_progress_btn.setStyleSheet("""
             QPushButton {
-                background-color: #f0f8ff;
-                color: #333333;
-                border: 1px solid #ccc;
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-size: 13px;
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
             }
-            QPushButton:hover {
-                background-color: #e0f0ff;
-            }
-            QPushButton:pressed {
-                background-color: #d0e0ff;
-            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
         """)
         self.toggle_log_btn = QPushButton("Collapse Log")
         self.toggle_log_btn.setIcon(self.qta.icon('fa5s.chevron-up', color='#555'))
         self.toggle_log_btn.clicked.connect(self.toggle_log)
         self.toggle_log_btn.setStyleSheet("""
             QPushButton {
-                background-color: #f0f8ff;
-                color: #333333;
-                border: 1px solid #ccc;
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-size: 13px;
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
             }
-            QPushButton:hover {
-                background-color: #e0f0ff;
-            }
-            QPushButton:pressed {
-                background-color: #d0e0ff;
-            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
         """)
         progress_buttons_layout.addWidget(self.chapter_progress_btn)
         progress_buttons_layout.addWidget(self.toggle_log_btn)
         progress_layout.addLayout(progress_buttons_layout)
         content_layout.addWidget(progress_card)
 
-        # Log area with improved styling
         log_header = QHBoxLayout()
         log_icon = QLabel()
         log_icon.setPixmap(self.qta.icon('fa5s.terminal', color='#4a86e8').pixmap(16, 16))
@@ -935,25 +882,19 @@ class TranslationDialog(QDialog):
         self.log_area.setFont(QFont("Consolas", 10))
         self.log_area.setStyleSheet("""
             QTextEdit {
-                background-color: #f8f8f8;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 6px;
+                background-color: #f8f8f8; border: 1px solid #ddd; border-radius: 4px; padding: 6px;
             }
         """)
         content_layout.addWidget(self.log_area)
 
-        # Setup scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidget(content_widget)
         scroll_area.setWidgetResizable(True)
 
-        # Main layout
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(scroll_area)
 
-        # Action buttons (outside scroll area)
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(15)
         btn_layout.addStretch(1)
@@ -964,27 +905,12 @@ class TranslationDialog(QDialog):
         self.start_btn.setMinimumHeight(36)
         self.start_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4a86e8;
-                color: #ffffff;
-                font-weight: bold;
-                border: 1px solid #3366cc;
-                border-radius: 6px;
-                padding: 10px 20px;
-                font-size: 14px;
+                background-color: #4a86e8; color: #ffffff; font-weight: bold; border: 1px solid #3366cc;
+                border-radius: 6px; padding: 10px 20px; font-size: 14px;
             }
-            QPushButton:hover {
-                background-color: #3b78de;
-                border: 1px solid #3366cc;
-            }
-            QPushButton:pressed {
-                background-color: #3366cc;
-                border: 1px solid #3366cc;
-            }
-            QPushButton:disabled {
-                background-color: #a0c0e8;
-                color: #ffffff;
-                border: 1px solid #a0c0e8;
-            }
+            QPushButton:hover { background-color: #3b78de; border: 1px solid #3366cc; }
+            QPushButton:pressed { background-color: #3366cc; border: 1px solid #3366cc; }
+            QPushButton:disabled { background-color: #a0c0e8; color: #ffffff; border: 1px solid #a0c0e8; }
         """)
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.setIcon(self.qta.icon('fa5s.times', color='white'))
@@ -993,22 +919,11 @@ class TranslationDialog(QDialog):
         self.cancel_btn.setMinimumHeight(36)
         self.cancel_btn.setStyleSheet("""
             QPushButton {
-                background-color: #f44336;
-                color: #ffffff;
-                font-weight: bold;
-                border: 1px solid #c62828;
-                border-radius: 6px;
-                padding: 10px 20px;
-                font-size: 14px;
+                background-color: #f44336; color: #ffffff; font-weight: bold; border: 1px solid #c62828;
+                border-radius: 6px; padding: 10px 20px; font-size: 14px;
             }
-            QPushButton:hover {
-                background-color: #d32f2f;
-                border: 1px solid #c62828;
-            }
-            QPushButton:pressed {
-                background-color: #c62828;
-                border: 1px solid #c62828;
-            }
+            QPushButton:hover { background-color: #d32f2f; border: 1px solid #c62828; }
+            QPushButton:pressed { background-color: #c62828; border: 1px solid #c62828; }
         """)
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.cancel_btn)
@@ -1034,23 +949,13 @@ class TranslationDialog(QDialog):
             message_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             message_box.setDefaultButton(QMessageBox.No)
             message_box.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
+                QMessageBox { background-color: white; }
                 QPushButton {
-                    background-color: #f0f8ff;
-                    color: #333333;
-                    border: 1px solid #ccc;
-                    border-radius: 6px;
-                    padding: 6px 12px;
-                    font-size: 13px;
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
                 }
-                QPushButton:hover {
-                    background-color: #e0f0ff;
-                }
-                QPushButton:pressed {
-                    background-color: #d0e0ff;
-                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
             """)
             yes_button = message_box.button(QMessageBox.Yes)
             yes_button.setIcon(self.qta.icon('fa5s.check', color='#4caf50'))
@@ -1074,23 +979,13 @@ class TranslationDialog(QDialog):
             message_box.setIcon(QMessageBox.Warning)
             message_box.setStandardButtons(QMessageBox.Ok)
             message_box.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
+                QMessageBox { background-color: white; }
                 QPushButton {
-                    background-color: #f0f8ff;
-                    color: #333333;
-                    border: 1px solid #ccc;
-                    border-radius: 6px;
-                    padding: 6px 12px;
-                    font-size: 13px;
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
                 }
-                QPushButton:hover {
-                    background-color: #e0f0ff;
-                }
-                QPushButton:pressed {
-                    background-color: #d0e0ff;
-                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
             """)
             message_box.exec_()
         else:
@@ -1141,23 +1036,13 @@ class TranslationDialog(QDialog):
         icon_label.setPixmap(self.qta.icon('fa5s.exclamation-triangle', color='#f44336').pixmap(32, 32))
         msg_box.setIconPixmap(icon_label.pixmap())
         msg_box.setStyleSheet("""
-            QMessageBox {
-                background-color: white;
-            }
+            QMessageBox { background-color: white; }
             QPushButton {
-                background-color: #f0f8ff;
-                color: #333333;
-                border: 1px solid #ccc;
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-size: 13px;
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
             }
-            QPushButton:hover {
-                background-color: #e0f0ff;
-            }
-            QPushButton:pressed {
-                background-color: #d0e0ff;
-            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
         """)
         msg_box.exec_()
 
@@ -1167,15 +1052,17 @@ class TranslationDialog(QDialog):
         start_chapter = self.start_spin.value() if self.chapter_range_btn.isChecked() else None
         end_chapter = self.end_spin.value() if self.chapter_range_btn.isChecked() else None
         params = {
+            'task_type': 'web',
             'book_url': self.url_edit.text(),
             'model_name': self.model_combo.currentText(),
             'prompt_style': self.style_combo.currentData(),
             'start_chapter': start_chapter,
             'end_chapter': end_chapter,
-            'output_directory': self.output_edit.text()
+            'output_directory': self.output_edit.text(),
         }
         self.current_history_id = HistoryManager.add_task({
             "timestamp": datetime.datetime.now().isoformat(),
+            "task_type": "web",
             "book_url": self.url_edit.text(),
             "model_name": self.model_combo.currentText(),
             "prompt_style": self.style_combo.currentText(),
@@ -1186,6 +1073,7 @@ class TranslationDialog(QDialog):
             "current_stage": "Starting",
             "progress": 0
         })
+        params['task_id'] = self.current_history_id
         self.start_btn.setEnabled(False)
         self.start_btn.setText("Translating...")
         self.start_btn.setIcon(self.qta.icon('fa5s.spinner', color='white', animation=self.qta.Spin(self.start_btn)))
@@ -1231,46 +1119,26 @@ class TranslationDialog(QDialog):
             open_button.setIcon(self.qta.icon('fa5s.folder-open', color='#4a86e8'))
             open_button.setStyleSheet("""
                 QPushButton {
-                    background-color: #f0f8ff;
-                    color: #333333;
-                    border: 1px solid #ccc;
-                    border-radius: 6px;
-                    padding: 8px 16px;
-                    font-size: 13px;
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 8px 16px; font-size: 13px;
                 }
-                QPushButton:hover {
-                    background-color: #e0f0ff;
-                }
-                QPushButton:pressed {
-                    background-color: #d0e0ff;
-                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
             """)
             close_button = QPushButton("Close")
             close_button.setStyleSheet("""
                 QPushButton {
-                    background-color: #f0f8ff;
-                    color: #333333;
-                    border: 1px solid #ccc;
-                    border-radius: 6px;
-                    padding: 8px 16px;
-                    font-size: 13px;
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 8px 16px; font-size: 13px;
                 }
-                QPushButton:hover {
-                    background-color: #e0f0ff;
-                }
-                QPushButton:pressed {
-                    background-color: #d0e0ff;
-                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
             """)
             msg_box.addButton(open_button, QMessageBox.ActionRole)
             msg_box.addButton(close_button, QMessageBox.RejectRole)
             msg_box.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
-                QLabel {
-                    margin-bottom: 10px;
-                }
+                QMessageBox { background-color: white; }
+                QLabel { margin-bottom: 10px; }
             """)
             msg_box.exec_()
             if msg_box.clickedButton() == open_button:
@@ -1284,23 +1152,13 @@ class TranslationDialog(QDialog):
             error_icon.setPixmap(self.qta.icon('fa5s.exclamation-triangle', color='#f44336').pixmap(48, 48))
             msg_box.setIconPixmap(error_icon.pixmap())
             msg_box.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
+                QMessageBox { background-color: white; }
                 QPushButton {
-                    background-color: #f0f8ff;
-                    color: #333333;
-                    border: 1px solid #ccc;
-                    border-radius: 6px;
-                    padding: 6px 12px;
-                    font-size: 13px;
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
                 }
-                QPushButton:hover {
-                    background-color: #e0f0ff;
-                }
-                QPushButton:pressed {
-                    background-color: #d0e0ff;
-                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
             """)
             msg_box.exec_()
         if self.current_history_id:
@@ -1358,22 +1216,609 @@ class TranslationDialog(QDialog):
             end_value = max(1, int(end))
             self.end_spin.setValue(end_value)
         self.output_edit.setText(task.get("output_directory", str(Path.home() / "Downloads")))
-        # Ensure the Start Translation button is reset to its initial state
         self.start_btn.setEnabled(True)
         self.start_btn.setText("Start Translation")
         self.start_btn.setIcon(self.qta.icon('fa5s.play', color='white'))
-        # Reset progress indicators for consistency
         self.progress_bar.setValue(0)
         self.stage_label.setText("Current Stage: Idle")
 
+class FileTranslationDialog(QDialog):
+    active_instance = None
 
+    @classmethod
+    def get_instance(cls, parent=None):
+        if cls.active_instance is None or sip.isdeleted(cls.active_instance):
+            cls.active_instance = FileTranslationDialog(parent)
+        return cls.active_instance
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Translate from File")
+        self.setMinimumSize(650, 550)
+        self.file_path = None
+        self.thread = None
+        self.log_handler = None
+        self.current_history_id = None
+        self.qta = qta
+        self.init_ui()
+        self.setup_logging()
+        FileTranslationDialog.active_instance = self
+
+    def setup_logging(self):
+        self.log_handler = QTextEditLogHandler()
+        self.log_handler.log_signal.connect(self.handle_log_message)
+        logging.root.addHandler(self.log_handler)
+
+    def handle_log_message(self, message):
+        self.log_area.moveCursor(QTextCursor.End)
+        self.log_area.insertPlainText(message + '\n')
+        self.log_area.ensureCursorVisible()
+
+    def init_ui(self):
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(20, 20, 20, 20)
+        content_layout.setSpacing(12)
+
+        title_layout = QHBoxLayout()
+        title_icon = QLabel()
+        title_icon.setPixmap(self.qta.icon('fa5s.book-reader', color='#4a86e8').pixmap(32, 32))
+        title_label = QLabel("File Translator")
+        title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #4a86e8;")
+        title_layout.addWidget(title_icon)
+        title_layout.addWidget(title_label)
+        title_layout.addStretch(1)
+        content_layout.addLayout(title_layout)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        separator.setStyleSheet("background-color: #e0e0e0;")
+        content_layout.addWidget(separator)
+
+        form_widget = QWidget()
+        form_layout = QFormLayout(form_widget)
+        form_layout.setContentsMargins(0, 10, 0, 10)
+        form_layout.setSpacing(15)
+        form_layout.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+
+        file_layout = QHBoxLayout()
+        self.file_edit = QLineEdit()
+        self.file_edit.setReadOnly(True)
+        self.file_edit.setMinimumHeight(30)
+        self.file_edit.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        select_file_btn = QPushButton("Select File")
+        select_file_btn.setIcon(self.qta.icon('fa5s.folder-open', color='#555'))
+        select_file_btn.clicked.connect(self.select_file)
+        select_file_btn.setFixedWidth(120)
+        select_file_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
+            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
+        """)
+        file_layout.addWidget(self.file_edit, 1)
+        file_layout.addWidget(select_file_btn)
+        form_layout.addRow(QLabel("File Path:"), file_layout)
+
+        self.title_edit = QLineEdit()
+        self.title_edit.setPlaceholderText("Enter book title")
+        self.title_edit.setMinimumHeight(30)
+        self.title_edit.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        form_layout.addRow(QLabel("Book Title:"), self.title_edit)
+
+        self.author_edit = QLineEdit()
+        self.author_edit.setPlaceholderText("Enter book author")
+        self.author_edit.setMinimumHeight(30)
+        self.author_edit.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        form_layout.addRow(QLabel("Book Author:"), self.author_edit)
+
+        self.model_combo = QComboBox()
+        self.model_combo.addItems(["gemini-2.0-flash", "gemini-2.0-flash-lite"])
+        self.model_combo.setMinimumHeight(30)
+        self.model_combo.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        form_layout.addRow(QLabel("Model:"), self.model_combo)
+
+        self.style_combo = QComboBox()
+        self.style_combo.addItem("Modern Style", 1)
+        self.style_combo.addItem("China Fantasy Style", 2)
+        self.style_combo.setMinimumHeight(30)
+        self.style_combo.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        form_layout.addRow(QLabel("Style:"), self.style_combo)
+
+        range_layout = QVBoxLayout()
+        self.chapter_range_btn = QPushButton("Set Chapter Range")
+        self.chapter_range_btn.setIcon(self.qta.icon('fa5s.list-ol', color='#555'))
+        self.chapter_range_btn.setCheckable(True)
+        self.chapter_range_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
+            }
+            QPushButton:checked { background-color: #e0f0ff; }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
+        """)
+        self.chapter_range_btn.clicked.connect(self.toggle_chapter_range)
+        range_header = QHBoxLayout()
+        range_header.addWidget(self.chapter_range_btn)
+        range_header.addStretch(1)
+        range_layout.addLayout(range_header)
+
+        self.chapter_range_container = QWidget()
+        chapter_range_inner = QFormLayout(self.chapter_range_container)
+        chapter_range_inner.setContentsMargins(10, 10, 10, 0)
+        chapter_range_inner.setSpacing(10)
+        self.start_spin = QSpinBox()
+        self.start_spin.setRange(1, 9999)
+        self.start_spin.setValue(1)
+        self.start_spin.setMinimumHeight(28)
+        self.start_spin.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        chapter_range_inner.addRow(QLabel("Start Chapter:"), self.start_spin)
+        self.end_spin = QSpinBox()
+        self.end_spin.setRange(1, 9999)
+        self.end_spin.setValue(1)
+        self.end_spin.setMinimumHeight(28)
+        self.end_spin.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        chapter_range_inner.addRow(QLabel("End Chapter:"), self.end_spin)
+        range_layout.addWidget(self.chapter_range_container)
+        self.chapter_range_container.hide()
+        form_layout.addRow("", range_layout)
+
+        output_layout = QHBoxLayout()
+        self.output_edit = QLineEdit()
+        self.output_edit.setText(str(Path.home() / "Downloads"))
+        self.output_edit.setMinimumHeight(30)
+        self.output_edit.setStyleSheet("padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc;")
+        browse_btn = QPushButton("Browse")
+        browse_btn.setIcon(self.qta.icon('fa5s.folder-open', color='#555'))
+        browse_btn.clicked.connect(self.choose_directory)
+        browse_btn.setFixedWidth(100)
+        browse_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
+            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
+        """)
+        output_layout.addWidget(self.output_edit, 1)
+        output_layout.addWidget(browse_btn)
+        form_layout.addRow(QLabel("Output Directory:"), output_layout)
+        content_layout.addWidget(form_widget)
+
+        progress_card = QFrame()
+        progress_card.setFrameShape(QFrame.StyledPanel)
+        progress_card.setStyleSheet("""
+            QFrame {
+                background-color: #f9f9f9; border: 1px solid #e0e0e0;
+                border-radius: 6px; padding: 12px;
+            }
+        """)
+        progress_layout = QVBoxLayout(progress_card)
+        progress_layout.setSpacing(10)
+        progress_header = QHBoxLayout()
+        progress_icon = QLabel()
+        progress_icon.setPixmap(self.qta.icon('fa5s.tasks', color='#4a86e8').pixmap(20, 20))
+        progress_header_label = QLabel("Progress")
+        progress_header_label.setStyleSheet("font-weight: bold; color: #4a86e8;")
+        progress_header.addWidget(progress_icon)
+        progress_header.addWidget(progress_header_label)
+        progress_header.addStretch(1)
+        progress_layout.addLayout(progress_header)
+        stage_layout = QHBoxLayout()
+        stage_icon = QLabel()
+        stage_icon.setPixmap(self.qta.icon('fa5s.info-circle', color='#555').pixmap(16, 16))
+        self.stage_label = QLabel("Current Stage: Idle")
+        stage_layout.addWidget(stage_icon)
+        stage_layout.addWidget(self.stage_label)
+        stage_layout.addStretch(1)
+        progress_layout.addLayout(stage_layout)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #ccc; border-radius: 4px; text-align: center; height: 20px;
+            }
+            QProgressBar::chunk {
+                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4a86e8, stop:1 #87b7ff);
+                border-radius: 3px;
+            }
+        """)
+        progress_layout.addWidget(self.progress_bar)
+        progress_buttons_layout = QHBoxLayout()
+        self.chapter_progress_btn = QPushButton("Chapter Progress")
+        self.chapter_progress_btn.setIcon(self.qta.icon('fa5s.chart-bar', color='#555'))
+        self.chapter_progress_btn.clicked.connect(self.show_chapter_progress)
+        self.chapter_progress_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
+            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
+        """)
+        self.toggle_log_btn = QPushButton("Collapse Log")
+        self.toggle_log_btn.setIcon(self.qta.icon('fa5s.chevron-up', color='#555'))
+        self.toggle_log_btn.clicked.connect(self.toggle_log)
+        self.toggle_log_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
+            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
+        """)
+        progress_buttons_layout.addWidget(self.chapter_progress_btn)
+        progress_buttons_layout.addWidget(self.toggle_log_btn)
+        progress_layout.addLayout(progress_buttons_layout)
+        content_layout.addWidget(progress_card)
+
+        log_header = QHBoxLayout()
+        log_icon = QLabel()
+        log_icon.setPixmap(self.qta.icon('fa5s.terminal', color='#4a86e8').pixmap(16, 16))
+        log_header_label = QLabel("Progress Log")
+        log_header_label.setStyleSheet("font-weight: bold; color: #4a86e8;")
+        log_header.addWidget(log_icon)
+        log_header.addWidget(log_header_label)
+        log_header.addStretch(1)
+        content_layout.addLayout(log_header)
+        self.log_area = QTextEdit()
+        self.log_area.setReadOnly(True)
+        self.log_area.setMinimumHeight(150)
+        self.log_area.setFont(QFont("Consolas", 10))
+        self.log_area.setStyleSheet("""
+            QTextEdit {
+                background-color: #f8f8f8; border: 1px solid #ddd; border-radius: 4px; padding: 6px;
+            }
+        """)
+        content_layout.addWidget(self.log_area)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidget(content_widget)
+        scroll_area.setWidgetResizable(True)
+
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(scroll_area)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(15)
+        btn_layout.addStretch(1)
+        self.start_btn = QPushButton("Start Translation")
+        self.start_btn.setIcon(self.qta.icon('fa5s.play', color='white'))
+        self.start_btn.clicked.connect(self.start_translation)
+        self.start_btn.setMinimumWidth(160)
+        self.start_btn.setMinimumHeight(36)
+        self.start_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4a86e8; color: #ffffff; font-weight: bold; border: 1px solid #3366cc;
+                border-radius: 6px; padding: 10px 20px; font-size: 14px;
+            }
+            QPushButton:hover { background-color: #3b78de; border: 1px solid #3366cc; }
+            QPushButton:pressed { background-color: #3366cc; border: 1px solid #3366cc; }
+            QPushButton:disabled { background-color: #a0c0e8; color: #ffffff; border: 1px solid #a0c0e8; }
+        """)
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setIcon(self.qta.icon('fa5s.times', color='white'))
+        self.cancel_btn.clicked.connect(self.on_cancel)
+        self.cancel_btn.setMinimumWidth(100)
+        self.cancel_btn.setMinimumHeight(36)
+        self.cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336; color: #ffffff; font-weight: bold; border: 1px solid #c62828;
+                border-radius: 6px; padding: 10px 20px; font-size: 14px;
+            }
+            QPushButton:hover { background-color: #d32f2f; border: 1px solid #c62828; }
+            QPushButton:pressed { background-color: #c62828; border: 1px solid #c62828; }
+        """)
+        btn_layout.addWidget(self.start_btn)
+        btn_layout.addWidget(self.cancel_btn)
+        btn_layout.addStretch(1)
+        main_layout.addLayout(btn_layout)
+
+        self.setLayout(main_layout)
+
+    def toggle_chapter_range(self):
+        if self.chapter_range_btn.isChecked():
+            self.chapter_range_container.show()
+            self.chapter_range_btn.setIcon(self.qta.icon('fa5s.list-ol', color='#4a86e8'))
+        else:
+            self.chapter_range_container.hide()
+            self.chapter_range_btn.setIcon(self.qta.icon('fa5s.list-ol', color='#555'))
+
+    def on_cancel(self):
+        if self.thread and self.thread.isRunning():
+            message_box = QMessageBox(self)
+            message_box.setWindowTitle('Cancel Translation')
+            message_box.setText('Are you sure you want to cancel the current translation?')
+            message_box.setIcon(QMessageBox.Question)
+            message_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            message_box.setDefaultButton(QMessageBox.No)
+            message_box.setStyleSheet("""
+                QMessageBox { background-color: white; }
+                QPushButton {
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
+                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
+            """)
+            yes_button = message_box.button(QMessageBox.Yes)
+            yes_button.setIcon(self.qta.icon('fa5s.check', color='#4caf50'))
+            no_button = message_box.button(QMessageBox.No)
+            no_button.setIcon(self.qta.icon('fa5s.times', color='#f44336'))
+            reply = message_box.exec_()
+            if reply == QMessageBox.Yes:
+                self.thread.stop()
+                self.log_area.append("Translation cancelled by user.")
+                self.start_btn.setEnabled(True)
+                self.accept()
+        else:
+            self.reject()
+
+    def closeEvent(self, event):
+        if self.thread and self.thread.isRunning():
+            event.ignore()
+            message_box = QMessageBox(self)
+            message_box.setWindowTitle("Operation in Progress")
+            message_box.setText("Please cancel the current translation before closing.")
+            message_box.setIcon(QMessageBox.Warning)
+            message_box.setStandardButtons(QMessageBox.Ok)
+            message_box.setStyleSheet("""
+                QMessageBox { background-color: white; }
+                QPushButton {
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
+                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
+            """)
+            message_box.exec_()
+        else:
+            logging.root.removeHandler(self.log_handler)
+            FileTranslationDialog.active_instance = None
+            super().closeEvent(event)
+            self.deleteLater()
+
+    def choose_directory(self):
+        directory = QFileDialog.getExistingDirectory(self, "Select Output Directory")
+        if directory:
+            self.output_edit.setText(directory)
+
+    def select_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Text File", "", "Text Files (*.txt)")
+        if file_path:
+            self.file_path = file_path
+            self.file_edit.setText(file_path)
+
+    def set_file_path(self, file_path):
+        self.file_path = file_path
+        self.file_edit.setText(file_path)
+
+    def validate_inputs(self):
+        if not self.file_path or not Path(self.file_path).is_file():
+            self.show_error_message("Validation Error", "Please select a valid text file.")
+            return False
+        if not self.title_edit.text().strip():
+            self.show_error_message("Validation Error", "Book title cannot be empty.")
+            return False
+        if self.chapter_range_btn.isChecked():
+            start_chapter = self.start_spin.value()
+            end_chapter = self.end_spin.value()
+            if start_chapter > end_chapter:
+                self.show_error_message("Validation Error",
+                                        "Start chapter cannot be greater than end chapter.")
+                return False
+        return True
+
+    def show_error_message(self, title, message):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Warning)
+        icon_label = QLabel(msg_box)
+        icon_label.setPixmap(self.qta.icon('fa5s.exclamation-triangle', color='#f44336').pixmap(32, 32))
+        msg_box.setIconPixmap(icon_label.pixmap())
+        msg_box.setStyleSheet("""
+            QMessageBox { background-color: white; }
+            QPushButton {
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
+            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
+        """)
+        msg_box.exec_()
+
+    def start_translation(self):
+        if not self.validate_inputs():
+            return
+        start_chapter = self.start_spin.value() if self.chapter_range_btn.isChecked() else None
+        end_chapter = self.end_spin.value() if self.chapter_range_btn.isChecked() else None
+        params = {
+            'task_type': 'file',
+            'file_path': self.file_path,
+            'book_title': self.title_edit.text().strip(),
+            'book_author': self.author_edit.text().strip() or 'Unknown',
+            'model_name': self.model_combo.currentText(),
+            'prompt_style': self.style_combo.currentData(),
+            'start_chapter': start_chapter,
+            'end_chapter': end_chapter,
+            'output_directory': self.output_edit.text(),
+        }
+        self.current_history_id = HistoryManager.add_task({
+            "timestamp": datetime.datetime.now().isoformat(),
+            "task_type": "file",
+            "file_path": self.file_path,
+            "book_title": self.title_edit.text().strip(),
+            "book_author": self.author_edit.text().strip() or 'Unknown',
+            "model_name": self.model_combo.currentText(),
+            "prompt_style": self.style_combo.currentText(),
+            "start_chapter": start_chapter,
+            "end_chapter": end_chapter,
+            "output_directory": self.output_edit.text(),
+            "status": "In Progress",
+            "current_stage": "Starting",
+            "progress": 0
+        })
+        params['task_id'] = self.current_history_id
+        self.start_btn.setEnabled(False)
+        self.start_btn.setText("Translating...")
+        self.start_btn.setIcon(self.qta.icon('fa5s.spinner', color='white', animation=self.qta.Spin(self.start_btn)))
+        self.log_area.clear()
+        self.log_area.append("Starting translation process...")
+        self.stage_label.setText("Current Stage: Initializing")
+        self.progress_bar.setValue(0)
+        self.thread = TranslationThread(params)
+        self.thread.update_log.connect(self.update_log)
+        self.thread.finished.connect(self.on_finished)
+        self.thread.stage_update.connect(self.on_stage_update)
+        self.thread.update_progress.connect(self.on_progress_update)
+        self.thread.start()
+
+    @pyqtSlot(str)
+    def on_stage_update(self, stage):
+        self.stage_label.setText(f"Current Stage: {stage}")
+        if self.current_history_id:
+            HistoryManager.update_task(self.current_history_id, {"current_stage": stage})
+
+    @pyqtSlot(int)
+    def on_progress_update(self, progress):
+        self.progress_bar.setValue(progress)
+        if self.current_history_id:
+            HistoryManager.update_task(self.current_history_id, {"progress": progress})
+
+    def update_log(self, message):
+        self.log_area.append(message)
+
+    def on_finished(self, success, epub_path):
+        self.start_btn.setEnabled(True)
+        self.start_btn.setText("Start Translation")
+        self.start_btn.setIcon(self.qta.icon('fa5s.play', color='white'))
+        if success:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Translation Completed")
+            msg_box.setText("Translation completed successfully!")
+            msg_box.setInformativeText(f"EPUB generated at:\n{epub_path}")
+            success_icon = QLabel(msg_box)
+            success_icon.setPixmap(self.qta.icon('fa5s.check-circle', color='#4caf50').pixmap(48, 48))
+            msg_box.setIconPixmap(success_icon.pixmap())
+            open_button = QPushButton("Open EPUB Folder")
+            open_button.setIcon(self.qta.icon('fa5s.folder-open', color='#4a86e8'))
+            open_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 8px 16px; font-size: 13px;
+                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
+            """)
+            close_button = QPushButton("Close")
+            close_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 8px 16px; font-size: 13px;
+                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
+            """)
+            msg_box.addButton(open_button, QMessageBox.ActionRole)
+            msg_box.addButton(close_button, QMessageBox.RejectRole)
+            msg_box.setStyleSheet("""
+                QMessageBox { background-color: white; }
+                QLabel { margin-bottom: 10px; }
+            """)
+            msg_box.exec_()
+            if msg_box.clickedButton() == open_button:
+                directory_path = str(Path(epub_path).parent)
+                QDesktopServices.openUrl(QUrl.fromLocalFile(directory_path))
+        else:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Warning")
+            msg_box.setText("Translation completed with errors!")
+            error_icon = QLabel(msg_box)
+            error_icon.setPixmap(self.qta.icon('fa5s.exclamation-triangle', color='#f44336').pixmap(48, 48))
+            msg_box.setIconPixmap(error_icon.pixmap())
+            msg_box.setStyleSheet("""
+                QMessageBox { background-color: white; }
+                QPushButton {
+                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
+                }
+                QPushButton:hover { background-color: #e0f0ff; }
+                QPushButton:pressed { background-color: #d0e0ff; }
+            """)
+            msg_box.exec_()
+        if self.current_history_id:
+            HistoryManager.update_task(self.current_history_id, {"status": "Success" if success else "Error"})
+
+    def show_chapter_progress(self):
+        if not self.thread or not self.thread.file_handler:
+            self.show_error_message("Unavailable", "Chapter progress is not available at this time.")
+            return
+        def status_getter():
+            if self.thread and self.thread.file_handler:
+                return self.thread.file_handler.get_chapter_status(
+                    self.start_spin.value() if self.chapter_range_btn.isChecked() else None,
+                    self.end_spin.value() if self.chapter_range_btn.isChecked() else None
+                )
+            return {}
+        dialog = EnhancedProgressDialog(status_getter, self)
+        dialog.exec_()
+
+    def toggle_log(self):
+        if self.log_area.isVisible():
+            self.log_area.hide()
+            self.toggle_log_btn.setText("Expand Log")
+            self.toggle_log_btn.setIcon(self.qta.icon('fa5s.chevron-down', color='#555'))
+        else:
+            self.log_area.show()
+            self.toggle_log_btn.setText("Collapse Log")
+            self.toggle_log_btn.setIcon(self.qta.icon('fa5s.chevron-up', color='#555'))
+
+    def load_task(self, task):
+        self.file_path = task.get("file_path", "")
+        self.file_edit.setText(self.file_path)
+        self.title_edit.setText(task.get("book_title", ""))
+        self.author_edit.setText(task.get("book_author", ""))
+        model_name = task.get("model_name", "gemini-2.0-flash")
+        index = self.model_combo.findText(model_name)
+        if index >= 0:
+            self.model_combo.setCurrentIndex(index)
+        prompt_style = task.get("prompt_style", "Modern Style")
+        index = self.style_combo.findText(prompt_style)
+        if index >= 0:
+            self.style_combo.setCurrentIndex(index)
+        start = task.get("start_chapter", None)
+        end = task.get("end_chapter", None)
+        if start is not None:
+            start_value = max(1, int(start))
+            self.start_spin.setValue(start_value)
+            self.chapter_range_btn.setChecked(True)
+            self.chapter_range_container.show()
+        else:
+            self.chapter_range_btn.setChecked(False)
+            self.chapter_range_container.hide()
+        if end is not None:
+            end_value = max(1, int(end))
+            self.end_spin.setValue(end_value)
+        self.output_edit.setText(task.get("output_directory", str(Path.home() / "Downloads")))
+        self.start_btn.setEnabled(True)
+        self.start_btn.setText("Start Translation")
+        self.start_btn.setIcon(self.qta.icon('fa5s.play', color='white'))
+        self.progress_bar.setValue(0)
+        self.stage_label.setText("Current Stage: Idle")
 
 class TranslationHistoryDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Translation History")
-        self.resize(800, 400)
+        self.resize(900, 400)
         self.history_tasks = []
         self.init_ui()
         self.load_history()
@@ -1384,18 +1829,19 @@ class TranslationHistoryDialog(QDialog):
 
         search_layout = QHBoxLayout()
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Search by URL")
+        self.search_edit.setPlaceholderText("Search by Title, URL, or File Path")
         self.search_edit.textChanged.connect(self.update_table)
         search_layout.addWidget(QLabel("Search:"))
         search_layout.addWidget(self.search_edit)
         layout.addLayout(search_layout)
 
-        self.table = QTableWidget(0, 8)
-        self.table.setHorizontalHeaderLabels(["Timestamp", "Book URL", "Model", "Prompt Style",
+        self.table = QTableWidget(0, 10)
+        self.table.setHorizontalHeaderLabels(["Timestamp", "Task Type", "Book Title", "Source", "Model", "Prompt Style",
                                               "Start Chapter", "End Chapter", "Output Directory", "Status"])
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setAlternatingRowColors(True)
         self.table.setSortingEnabled(True)
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self.table)
 
         btn_layout = QHBoxLayout()
@@ -1429,7 +1875,9 @@ class TranslationHistoryDialog(QDialog):
         search_text = self.search_edit.text().lower()
         display_tasks = [
             task for task in self.history_tasks
-            if search_text in task.get("book_url", "").lower()
+            if search_text in normalize_unicode_text(task.get("book_title", ""))
+            or (task.get('task_type') == 'web' and search_text in task.get("book_url", ""))
+            or (task.get('task_type') == 'file' and search_text in task.get("file_path", ""))
         ]
         self.table.setRowCount(0)
         for task in display_tasks:
@@ -1438,13 +1886,16 @@ class TranslationHistoryDialog(QDialog):
             timestamp_item = QTableWidgetItem(task.get("timestamp", ""))
             timestamp_item.setData(Qt.UserRole, task["id"])
             self.table.setItem(rowPosition, 0, timestamp_item)
-            self.table.setItem(rowPosition, 1, QTableWidgetItem(task.get("book_url", "")))
-            self.table.setItem(rowPosition, 2, QTableWidgetItem(task.get("model_name", "")))
-            self.table.setItem(rowPosition, 3, QTableWidgetItem(str(task.get("prompt_style", ""))))
-            self.table.setItem(rowPosition, 4, QTableWidgetItem(str(task.get("start_chapter", ""))))
-            self.table.setItem(rowPosition, 5, QTableWidgetItem(str(task.get("end_chapter", ""))))
-            self.table.setItem(rowPosition, 6, QTableWidgetItem(task.get("output_directory", "")))
-            self.table.setItem(rowPosition, 7, QTableWidgetItem(task.get("status", "")))
+            self.table.setItem(rowPosition, 1, QTableWidgetItem(task.get("task_type", "")))
+            self.table.setItem(rowPosition, 2, QTableWidgetItem(task.get("book_title", "")))
+            source = task.get("book_url", task.get("file_path", ""))
+            self.table.setItem(rowPosition, 3, QTableWidgetItem(source))
+            self.table.setItem(rowPosition, 4, QTableWidgetItem(task.get("model_name", "")))
+            self.table.setItem(rowPosition, 5, QTableWidgetItem(str(task.get("prompt_style", ""))))
+            self.table.setItem(rowPosition, 6, QTableWidgetItem(str(task.get("start_chapter", ""))))
+            self.table.setItem(rowPosition, 7, QTableWidgetItem(str(task.get("end_chapter", ""))))
+            self.table.setItem(rowPosition, 8, QTableWidgetItem(task.get("output_directory", "")))
+            self.table.setItem(rowPosition, 9, QTableWidgetItem(task.get("status", "")))
         self.table.setSortingEnabled(True)
 
     def load_selected_task(self):
@@ -1456,7 +1907,13 @@ class TranslationHistoryDialog(QDialog):
         task_id = self.table.item(row, 0).data(Qt.UserRole)
         task = next((t for t in self.history_tasks if t["id"] == task_id), None)
         if task:
-            dialog = TranslationDialog.get_instance(self.parent())
+            if task.get("task_type") == "web":
+                dialog = TranslationDialog.get_instance(self.parent())
+            elif task.get("task_type") == "file":
+                dialog = FileTranslationDialog.get_instance(self.parent())
+            else:
+                QMessageBox.warning(self, "Error", "Invalid task type.")
+                return
             dialog.load_task(task)
             dialog.setModal(False)
             dialog.show()
@@ -1475,7 +1932,6 @@ class TranslationHistoryDialog(QDialog):
         HistoryManager.remove_task_by_id(task_id)
         self.load_history()
 
-
 class SourceInfoDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1485,14 +1941,11 @@ class SourceInfoDialog(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout()
-
-        # Explanation label
         explanation = QLabel(
             "The following sources are supported with their respective configurations and estimated download speeds.")
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
 
-        # Table to display source information
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels([
@@ -1504,7 +1957,6 @@ class SourceInfoDialog(QDialog):
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
 
-        # Populate table with data from DownloaderFactory.get_source_info()
         source_infos = DownloaderFactory.get_source_info()
         for info in source_infos:
             row = self.table.rowCount()
@@ -1522,7 +1974,6 @@ class SourceInfoDialog(QDialog):
         self.table.resizeColumnsToContents()
         layout.addWidget(self.table)
 
-        # Close button
         btn_layout = QHBoxLayout()
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
@@ -1533,7 +1984,6 @@ class SourceInfoDialog(QDialog):
 
         self.setLayout(layout)
 
-# MainWindow class remains unchanged
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1547,15 +1997,17 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)  # Increase spacing between widgets
+        layout.setSpacing(15)
 
         title = QLabel("Novel Translator")
         title.setFont(QFont("Segoe UI", 22, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
 
-        # Create styled buttons with proper alignment
         translate_btn = self.create_styled_button("Translate from Web", 'mdi.web')
         translate_btn.clicked.connect(self.show_translate_dialog)
+
+        file_translate_btn = self.create_styled_button("Translate From File", 'mdi.file-document')
+        file_translate_btn.clicked.connect(self.show_file_translate_dialog)
 
         history_btn = self.create_styled_button("Translation History", 'mdi.history')
         history_btn.clicked.connect(self.show_history_dialog)
@@ -1566,6 +2018,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(title)
         layout.addStretch()
         layout.addWidget(translate_btn)
+        layout.addWidget(file_translate_btn)
         layout.addWidget(history_btn)
         layout.addWidget(config_btn)
         layout.addStretch()
@@ -1574,35 +2027,31 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
     def create_styled_button(self, text, icon_name):
-        """Create a styled button with centered text and icon"""
         button = QPushButton(text)
-
-        # Set icon with proper size
         icon = qta.icon(icon_name, color='#505050')
         button.setIcon(icon)
-        button.setIconSize(QSize(24, 24))  # Increase icon size
-
-        # Center align text and icon
+        button.setIconSize(QSize(24, 24))
         button.setStyleSheet("""
             QPushButton {
-                text-align: center;
-                padding: 10px;
-                font-size: 14px;
-                font-weight: bold;
-                border-radius: 5px;
-                min-height: 45px;
+                text-align: center; padding: 10px; font-size: 14px;
+                font-weight: bold; border-radius: 5px; min-height: 45px;
             }
         """)
-
-        # Ensure icon is positioned correctly with text
         button.setLayoutDirection(Qt.LeftToRight)
-
         return button
 
     def show_translate_dialog(self):
         dialog = TranslationDialog.get_instance(self)
         dialog.setModal(False)
         dialog.show()
+
+    def show_file_translate_dialog(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Text File", "", "Text Files (*.txt)")
+        if file_path:
+            dialog = FileTranslationDialog.get_instance(self)
+            dialog.set_file_path(file_path)
+            dialog.setModal(False)
+            dialog.show()
 
     def show_settings(self):
         dialog = SettingsDialog(self)

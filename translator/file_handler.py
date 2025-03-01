@@ -8,7 +8,7 @@ from epub.generator import EPUBGenerator
 from logger import logging_utils
 from translator import text_processing
 from config import settings
-from translator.helper import is_in_chapter_range, generate_chapter_suffix
+from translator.helper import is_in_chapter_range, generate_chapter_suffix, sanitize_path_name
 from translator.text_processing import get_unique_names_from_text, add_underscore
 
 
@@ -197,7 +197,7 @@ class FileHandler:
 
     def create_prompt_files_from_chapters(self, start_chapter: Optional[int] = None, end_chapter: Optional[int] = None) -> None:
         """Create prompt files from downloaded chapters, return count of prompts created."""
-        download_dir = self.get_path("downloaded_chapters")
+        download_dir = self.get_path("input_chapters")
         prompt_count = 0
 
         chapter_files = [
@@ -209,7 +209,7 @@ class FileHandler:
             return
 
         for chapter_file in chapter_files:
-            chapter_text = self.load_content_from_file(chapter_file.name, "downloaded_chapters")
+            chapter_text = self.load_content_from_file(chapter_file.name, "input_chapters")
             if chapter_text:
                 prompts = text_processing.split_text_into_chunks(chapter_text, settings.MAX_TOKENS_PER_PROMPT)
                 for idx, prompt_text in enumerate(prompts):
@@ -233,10 +233,11 @@ class FileHandler:
 
         for file_path in files_to_check:
             content = self.load_content_from_file(file_path.name, "translation_responses")
+            original_content = self.load_content_from_file(file_path.name, "prompt_files")
             reasons = []
 
             # Check 1: Short content (<=1 line)
-            if len(content.splitlines()) <= 1:
+            if len(content.splitlines()) <= 1 < len(original_content.splitlines()):
                 reasons.append("Short content")
 
             # Check 2: Repeated words (20+ consecutive repeats)
@@ -336,7 +337,7 @@ class FileHandler:
             logging.warning("No translated files found to create EPUB.")
             return
 
-        book_title = book_title.replace(":", " ")
+        book_title = sanitize_path_name(book_title)
         output_filepath = self.get_path("epub") / f"{book_title}.epub"
 
         epub_generator = EPUBGenerator() # Instantiate generator
@@ -407,3 +408,21 @@ class FileHandler:
 
         # Sort chapters for better readability in logs
         return dict(sorted(chapter_status.items()))
+
+
+class FileSplitter:
+    def __init__(self, file_path, output_dir):
+        self.file_path = file_path
+        self.output_dir = output_dir
+        self.chapters_dir = self.output_dir / "input_chapters"
+        self.chapters_dir.mkdir(exist_ok=True)
+
+    def split_chapters(self):
+        with open(self.file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        chapters = content.split('\n\n')
+        for i, chapter in enumerate(chapters, 1):
+            if chapter.strip():
+                chapter_file = self.chapters_dir / f"chapter_{i:04d}.txt"
+                with open(chapter_file, 'w', encoding='utf-8') as cf:
+                    cf.write(chapter.strip())

@@ -66,12 +66,6 @@ class BaseBookDownloader(ABC):
         self.start_chapter = start_chapter
         self.end_chapter = end_chapter
 
-        self.bulk_download = self.__class__.bulk_download
-        self.concurrent_downloads = self.__class__.concurrent_downloads
-        self.request_delay = self.__class__.request_delay
-        self.source_language = self.__class__.source_language
-        self.enable_book_info_translation = self.__class__.enable_book_info_translation
-
         self.session = self._init_requests_session()
         self.translator = Translator()
 
@@ -236,7 +230,7 @@ class BaseBookDownloader(ABC):
 
     def _save_chapter(self, chapter_number: int, content: str) -> None:
         """Save chapter content to file."""
-        chapters_dir = self.book_dir / "downloaded_chapters"
+        chapters_dir = self.book_dir / "input_chapters"
         chapters_dir.mkdir(exist_ok=True)
 
         filename = chapters_dir / f"chapter_{chapter_number:04d}.txt"

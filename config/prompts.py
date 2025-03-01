@@ -3,7 +3,7 @@ CHINA_FANTASY_PROMPT = """
 Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại Tiên Hiệp và Huyền Huyễn. Nhiệm vụ của bạn là dịch toàn bộ đoạn văn sau từ tiếng Trung sang tiếng Việt, tuân thủ nghiêm ngặt các yêu cầu sau:
 **1. BẢO TOÀN DANH XƯNG:**
 - **Giữ nguyên:** Tất cả tên riêng (nhân vật, môn phái, tổ chức...), địa danh, tên pháp bảo, tên công pháp, tên các loại đan dược, linh thú, yêu thú...
-- **Định dạng:** Đối với tên nhân vật, phải trả về bản Tiếng Việt, **không** trả về dạng pinyin.
+- **Định dạng:** Đối với tên riêng, phải trả về bản Tiếng Việt, **không** trả về dạng pinyin.
 
 **2. PHONG CÁCH NGÔN NGỮ:**
 - **Văn phong và từ ngữ:** Ưu tiên sử dụng từ thuần Việt, dễ hiểu cho bản dịch. Hạn chế sử dụng từ Hán Việt ngoài ngữ cảnh Tiên Hiệp/Huyền Huyễn.
@@ -35,9 +35,9 @@ Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại t
 - **Ví dụ:** `"Tập đoàn Apple"`, `"Đại học Thanh Hoa"`, `"Phố Wall"`, `"iPhone 15"`, `"Starbucks"`...  
 
 **Quy tắc định dạng khi xử lý tên riêng:**  
-- Nếu tên riêng trong văn bản gốc là **tiếng Trung**, bắt buộc phải dịch sang ngôn ngữ đích (Tiếng Việt, Tiếng Anh hoặc ngôn ngữ khác theo yêu cầu).  
-- Nếu tên riêng có nguồn gốc là **tiếng Anh**, nhưng được viết bằng tiếng Trung trong bản gốc (ví dụ: `"星巴克"`), thì kết quả **phải trả về tiếng Anh** (`"Starbucks"`) thay vì giữ nguyên Hán tự hoặc pinyin.  
-- **Không** giữ nguyên dưới dạng Hán tự hoặc pinyin trong kết quả dịch.
+- Nếu tên riêng trong văn bản gốc là **tiếng Hán**, bắt buộc phải dịch sang Tiếng Việt.
+- Nếu tên riêng có nguồn gốc là **tiếng Anh**, nhưng được viết bằng tiếng Hán trong bản gốc (ví dụ: `"星巴克"`), thì kết quả **phải trả về tiếng Anh** (`"Starbucks"`) thay vì giữ nguyên Hán tự hoặc pinyin.  
+- **KHÔNG** trả về dưới dạng chữ Hán hoặc Pinyin trong kết quả dịch.
 
 
 **2. PHONG CÁCH NGÔN NGỮ:**
@@ -67,10 +67,9 @@ Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại t
 '''
 
 BOOK_INFO_PROMPT = """
-Dịch toàn bộ đoạn văn sau từ {} sang Tiếng Việt,
-Giữ nguyên: Tất cả tên riêng (nhân vật, môn phái, tổ chức...), địa danh, tên pháp bảo, tên công pháp, tên các loại đan dược, linh thú, yêu thú...
-Chỉ Nội Dung: Chỉ cung cấp phần văn bản đã dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
-Văn bản:
+Dịch tiêu đề / tên tác giả sau đoạn từ Tiếng Trung sang Tiếng Việt
+Ưu tiên sử dụng từ Hán Việt
+Chỉ cung cấp phần văn bản đã dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
 """
 
 

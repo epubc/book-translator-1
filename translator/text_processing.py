@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 import jieba
 from typing import List, Tuple
@@ -240,3 +241,7 @@ def preprocess_raw_text(text: str, retry_count: int) -> str:
     text = remove_underscore(text)
     text = translate_long_text(text, src="zh-CN", dest="en", chunk_size=1024)
     return add_underscore(text)
+
+def normalize_unicode_text(text: str) -> str:
+    normalized = unicodedata.normalize('NFD', text)
+    return ''.join(c for c in normalized if not unicodedata.combining(c)).casefold()
