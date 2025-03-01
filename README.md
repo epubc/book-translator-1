@@ -56,4 +56,4 @@ These instructions assume you have Python 3 and `pip` installed.  If not, please
 With the virtual environment activated and dependencies installed, you can launch the application's user interface:
 
 ```bash
-python ui.py
+python __main__.py
