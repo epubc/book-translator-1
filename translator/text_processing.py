@@ -225,7 +225,7 @@ def preprocess_raw_text(text: str, retry_count: int) -> str:
         return text
     text = remove_underscore(text)
     text = translate_long_text(text, src="zh-CN", dest="en", chunk_size=1024)
-    return add_underscore(text)
+    return add_underscore(text, is_chinese=False)
 
 def normalize_unicode_text(text: str) -> str:
     normalized = unicodedata.normalize('NFD', text)

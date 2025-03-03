@@ -173,3 +173,45 @@ class HistoryManager:
                 if not thread or not thread.isRunning():
                     cls.unregister_active_task(task_id)
             return len(cls._active_tasks)
+
+    @classmethod
+    def update_book_state_json(cls, book_dir, book_title, author):
+        """
+        Update the book_info in state.json when a task's title or author is edited.
+        
+        Args:
+            book_dir (str): Path to the book directory
+            book_title (str): New book title
+            author (str): New author name
+        """
+        if not book_dir:
+            logging.warning("No output directory provided for state.json update")
+            return False
+            
+        book_dir = Path(book_dir)
+        state_file = book_dir / "state.json"
+        
+        if not state_file.exists():
+            logging.warning(f"State file does not exist at {state_file}")
+            return False
+            
+        try:
+            with open(state_file, 'r', encoding="utf-8") as f:
+                state = json.load(f)
+                
+            if "book_info" in state:
+                state["book_info"]["title"] = book_title
+                state["book_info"]["author"] = author
+                
+                with open(state_file, 'w', encoding="utf-8") as f:
+                    json.dump(state, f, indent=2, ensure_ascii=False)
+                    
+                logging.info(f"Updated book_info in state.json at {state_file}")
+                return True
+            else:
+                logging.warning(f"No book_info found in state.json at {state_file}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"Error updating state.json: {str(e)}")
+            return False

@@ -46,11 +46,6 @@ def main() -> None:
         file_handler.create_prompt_files_from_chapters()
 
         logging.info("--- Stage 3: Translating Prompts ---")
-        logging_utils.configure_logging(
-            book_dir,
-            start_chapter=start_chapter,
-            end_chapter=end_chapter
-        )
         translator.process_book_translation(prompt_style=args.prompt_style, start_chapter=start_chapter,
                                             end_chapter=end_chapter)
 

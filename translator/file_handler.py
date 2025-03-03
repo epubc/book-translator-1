@@ -8,7 +8,7 @@ from epub.generator import EPUBGenerator
 from logger import logging_utils
 from translator import text_processing
 from config import settings
-from translator.helper import is_in_chapter_range, generate_chapter_suffix, sanitize_path_name
+from translator.helper import is_in_chapter_range, sanitize_path_name
 from translator.text_processing import get_unique_names_from_text, add_underscore
 
 
@@ -17,7 +17,6 @@ class FileHandler:
 
     def __init__(self, book_dir: Path, start_chapter: Optional[int], end_chapter: Optional[int]):
         self.book_dir = book_dir
-        self.chapter_suffix =  generate_chapter_suffix(start=start_chapter, end=end_chapter)
         self._ensure_directory_structure()
 
 
@@ -29,10 +28,7 @@ class FileHandler:
 
 
     def get_progress_path(self) -> Path:
-        return self.book_dir / f"progress{self.chapter_suffix}.json"
-
-    def get_log_path(self) -> Path:
-        return self.book_dir / f"translation_log{self.chapter_suffix}.log"
+        return self.book_dir / f"progress.json"
 
 
     def get_path(self, key: str) -> Path:
@@ -194,11 +190,13 @@ class FileHandler:
 
         logging.info("Combine chapter translations complete")
 
-
-    def create_prompt_files_from_chapters(self, start_chapter: Optional[int] = None, end_chapter: Optional[int] = None) -> None:
-        """Create prompt files from downloaded chapters, return count of prompts created."""
+    def create_prompt_files_from_chapters(self, start_chapter: Optional[int] = None,
+                                          end_chapter: Optional[int] = None) -> None:
+        """Create prompt files from downloaded chapters, but only for chapters without existing prompt files."""
         download_dir = self.get_path("input_chapters")
+        prompt_dir = self.get_path("prompt_files")
         prompt_count = 0
+        new_chapter_count = 0
 
         chapter_files = [
             p for p in download_dir.glob("*.txt")
@@ -208,15 +206,33 @@ class FileHandler:
             logging.warning(f"No chapter files found in: {download_dir}")
             return
 
+        # Get existing prompt file prefixes (chapter names)
+        existing_prompts = set()
+        for prompt_file in prompt_dir.glob("*.txt"):
+            # Extract chapter name from prompt filename (e.g., "chapter_0001_1.txt" -> "chapter_0001")
+            match = re.match(r"(.*)_\d+\.txt", prompt_file.name)
+            if match:
+                existing_prompts.add(match.group(1))
+
         for chapter_file in chapter_files:
+            # Skip if this chapter already has prompt files
+            if chapter_file.stem in existing_prompts:
+                logging.debug(f"Skipping {chapter_file.stem} - prompt files already exist")
+                continue
+
             chapter_text = self.load_content_from_file(chapter_file.name, "input_chapters")
             if chapter_text:
+                new_chapter_count += 1
                 prompts = text_processing.split_text_into_chunks(chapter_text, settings.MAX_TOKENS_PER_PROMPT)
                 for idx, prompt_text in enumerate(prompts):
-                    prompt_filename = f"{chapter_file.stem}_{idx + 1}.txt" # chapter_0001_1.txt, chapter_0001_2.txt, etc.
+                    prompt_filename = f"{chapter_file.stem}_{idx + 1}.txt"
                     self.save_content_to_file(add_underscore(prompt_text), prompt_filename, "prompt_files")
                     prompt_count += 1
-        logging.info(f"Created {prompt_count} prompt files from downloaded chapters.")
+
+        if new_chapter_count > 0:
+            logging.info(f"Created {prompt_count} prompt files from {new_chapter_count} new chapters.")
+        else:
+            logging.info("No new chapters to process - all chapters already have prompt files.")
         return
 
 
@@ -362,6 +378,10 @@ class FileHandler:
 
         prompts_dir = self.get_path("prompt_files")
         responses_dir = self.get_path("translation_responses")
+
+        # Ensure directories exist
+        prompts_dir.mkdir(parents=True, exist_ok=True)
+        responses_dir.mkdir(parents=True, exist_ok=True)
 
         # Get all prompt files in the specified range
         prompt_files = [

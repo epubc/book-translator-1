@@ -60,10 +60,10 @@ class TranslationThread(QThread):
         book_info = self.downloader.book_info
         book_dir = self.downloader.book_dir
 
-        # Update history with book info before downloading chapters
-        self._update_task_history(book_info)
+        configure_logging(book_dir)
 
-        configure_logging(book_dir, start_chapter=start_chapter, end_chapter=end_chapter)
+        # Update history with book info before downloading chapters
+        self._update_task_history(book_info, book_dir)
 
         self.stage_update.emit("Downloading chapters...")
         self.downloader.download_book()
@@ -77,12 +77,12 @@ class TranslationThread(QThread):
         end_chapter = self.params.get('end_chapter')
         file_path = self.params['file_path']
         book_title = self.params['book_title']
-        book_author = self.params['book_author']
+        book_author = self.params['author']
 
         book_dir = output_dir / self._sanitize_filename(book_title)
         book_dir.mkdir(parents=True, exist_ok=True)
 
-        configure_logging(book_dir, start_chapter=start_chapter, end_chapter=end_chapter)
+        configure_logging(book_dir)
 
         self.stage_update.emit("Splitting file into chapters...")
         splitter = FileSplitter(file_path, book_dir)
@@ -91,7 +91,7 @@ class TranslationThread(QThread):
         book_info = BookInfo(title=book_title, author=book_author)
 
         # Update history with book info immediately
-        self._update_task_history(book_info)
+        self._update_task_history(book_info, book_dir)
 
         return book_info, book_dir
 
@@ -127,16 +127,31 @@ class TranslationThread(QThread):
         finally:
             self._cleanup()
 
-    def _update_task_history(self, book_info: BookInfo) -> None:
+    def _update_task_history(self, book_info: BookInfo, book_dir: Path = None) -> None:
         """Update the task history if a task ID is provided."""
         if 'task_id' in self.params:
-            HistoryManager.update_task(self.params['task_id'], {"book_title": book_info.title})
+            update_data = {
+                "book_title": book_info.title,
+                "author": book_info.author
+            }
+            
+            # Add book_dir to history if provided
+            if book_dir:
+                update_data["book_dir"] = str(book_dir)
+                
+            HistoryManager.update_task(self.params['task_id'], update_data)
 
     def _execute_translation_process(self, book_dir: Path, book_info: BookInfo) -> Path:
         """Execute the main translation process workflow."""
         start_chapter = self.params.get('start_chapter')
         end_chapter = self.params.get('end_chapter')
         model_config = get_model_config(self.params['model_name'])
+
+        # Update task history with book_dir (in case it wasn't already added)
+        if 'task_id' in self.params:
+            HistoryManager.update_task(self.params['task_id'], {
+                "book_dir": str(book_dir)
+            })
 
         # Initialize handlers
         self.stage_update.emit("Preparing file handler...")

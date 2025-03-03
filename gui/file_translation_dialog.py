@@ -3,16 +3,17 @@ from PyQt5 import sip
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
                              QComboBox, QSpinBox, QTextEdit, QProgressBar, QScrollArea, QFrame,
                              QMessageBox, QFileDialog, QWidget, QFormLayout)
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl, QSettings
 from PyQt5.QtGui import QFont, QTextCursor, QDesktopServices
 import datetime
 from pathlib import Path
 from core.translation_thread import TranslationThread
 from core.history_manager import HistoryManager
 from core.utils import QTextEditLogHandler
-from gui.button_styles import WidgetStyles, ButtonStyles
+from gui.ui_styles import WidgetStyles, ButtonStyles
 from gui.progress_dialog import EnhancedProgressDialog
 import qtawesome as qta
+from translator.file_handler import FileHandler
 
 class FileTranslationDialog(QDialog):
     active_instance = None
@@ -32,8 +33,11 @@ class FileTranslationDialog(QDialog):
         self.log_handler = None
         self.current_history_id = None
         self.qta = qta
+        self.settings = QSettings("NovelTranslator", "Config")
         self.init_ui()
         self.setup_logging()
+        self.load_default_settings()
+        self.setWindowModality(Qt.NonModal)
         FileTranslationDialog.active_instance = self
 
     def setup_logging(self):
@@ -117,7 +121,8 @@ class FileTranslationDialog(QDialog):
         self.model_combo = QComboBox()
         self.model_combo.addItems(["gemini-2.0-flash", "gemini-2.0-flash-lite"])
         self.model_combo.setMinimumHeight(30)
-        self.model_combo.setStyleSheet(WidgetStyles.get_input_style("primary"))
+        self.model_combo.setMinimumWidth(200)
+        self.model_combo.setStyleSheet(WidgetStyles.get_combo_box_style("primary"))
         model_label = QLabel("Model:")
         model_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
         form_layout.addRow(model_label, self.model_combo)
@@ -127,7 +132,8 @@ class FileTranslationDialog(QDialog):
         self.style_combo.addItem("Modern Style", 1)
         self.style_combo.addItem("China Fantasy Style", 2)
         self.style_combo.setMinimumHeight(30)
-        self.style_combo.setStyleSheet(WidgetStyles.get_input_style("primary"))
+        self.style_combo.setMinimumWidth(200)
+        self.style_combo.setStyleSheet(WidgetStyles.get_combo_box_style("primary"))
         style_label = QLabel("Style:")
         style_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
         form_layout.addRow(style_label, self.style_combo)
@@ -138,12 +144,7 @@ class FileTranslationDialog(QDialog):
         self.chapter_range_btn.setIcon(self.qta.icon('fa5s.list-ol', color='#555'))
         self.chapter_range_btn.setCheckable(True)
         self.chapter_range_btn.setStyleSheet(
-            ButtonStyles.get_secondary_style() + f"""
-            QPushButton:checked {{
-                background-color: {WidgetStyles.COLORS["primary"]["light"]};
-                color: {WidgetStyles.COLORS["primary"]["text_light"]};
-            }}
-            """
+            ButtonStyles.get_secondary_style() + WidgetStyles.get_checkable_button_style()
         )
         self.chapter_range_btn.clicked.connect(self.toggle_chapter_range)
         range_header = QHBoxLayout()
@@ -301,15 +302,7 @@ class FileTranslationDialog(QDialog):
             message_box.setIcon(QMessageBox.Question)
             message_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             message_box.setDefaultButton(QMessageBox.No)
-            message_box.setStyleSheet("""
-                QMessageBox { background-color: white; }
-                QPushButton {
-                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
-                }
-                QPushButton:hover { background-color: #e0f0ff; }
-                QPushButton:pressed { background-color: #d0e0ff; }
-            """)
+            message_box.setStyleSheet(WidgetStyles.get_message_box_style())
             yes_button = message_box.button(QMessageBox.Yes)
             yes_button.setIcon(self.qta.icon('fa5s.check', color='#4caf50'))
             no_button = message_box.button(QMessageBox.No)
@@ -331,15 +324,7 @@ class FileTranslationDialog(QDialog):
             message_box.setText("Please cancel the current translation before closing.")
             message_box.setIcon(QMessageBox.Warning)
             message_box.setStandardButtons(QMessageBox.Ok)
-            message_box.setStyleSheet("""
-                QMessageBox { background-color: white; }
-                QPushButton {
-                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
-                }
-                QPushButton:hover { background-color: #e0f0ff; }
-                QPushButton:pressed { background-color: #d0e0ff; }
-            """)
+            message_box.setStyleSheet(WidgetStyles.get_message_box_style())
             message_box.exec_()
         else:
             logging.root.removeHandler(self.log_handler)
@@ -386,15 +371,7 @@ class FileTranslationDialog(QDialog):
         icon_label = QLabel(msg_box)
         icon_label.setPixmap(self.qta.icon('fa5s.exclamation-triangle', color='#f44336').pixmap(32, 32))
         msg_box.setIconPixmap(icon_label.pixmap())
-        msg_box.setStyleSheet("""
-            QMessageBox { background-color: white; }
-            QPushButton {
-                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                border-radius: 6px; padding: 6px 12px; font-size: 13px;
-            }
-            QPushButton:hover { background-color: #e0f0ff; }
-            QPushButton:pressed { background-color: #d0e0ff; }
-        """)
+        msg_box.setStyleSheet(WidgetStyles.get_message_box_style())
         msg_box.exec_()
 
     def start_translation(self):
@@ -406,7 +383,7 @@ class FileTranslationDialog(QDialog):
             'task_type': 'file',
             'file_path': self.file_path,
             'book_title': self.title_edit.text().strip(),
-            'book_author': self.author_edit.text().strip() or 'Unknown',
+            'author': self.author_edit.text().strip() or 'Unknown',
             'model_name': self.model_combo.currentText(),
             'prompt_style': self.style_combo.currentData(),
             'start_chapter': start_chapter,
@@ -418,7 +395,7 @@ class FileTranslationDialog(QDialog):
             "task_type": "file",
             "file_path": self.file_path,
             "book_title": self.title_edit.text().strip(),
-            "book_author": self.author_edit.text().strip() or 'Unknown',
+            "author": self.author_edit.text().strip() or 'Unknown',
             "model_name": self.model_combo.currentText(),
             "prompt_style": self.style_combo.currentText(),
             "start_chapter": start_chapter,
@@ -472,29 +449,12 @@ class FileTranslationDialog(QDialog):
             msg_box.setIconPixmap(success_icon.pixmap())
             open_button = QPushButton("Open EPUB Folder")
             open_button.setIcon(self.qta.icon('fa5s.folder-open', color='#4a86e8'))
-            open_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                    border-radius: 6px; padding: 8px 16px; font-size: 13px;
-                }
-                QPushButton:hover { background-color: #e0f0ff; }
-                QPushButton:pressed { background-color: #d0e0ff; }
-            """)
+            open_button.setStyleSheet(WidgetStyles.get_action_button_style())
             close_button = QPushButton("Close")
-            close_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                    border-radius: 6px; padding: 8px 16px; font-size: 13px;
-                }
-                QPushButton:hover { background-color: #e0f0ff; }
-                QPushButton:pressed { background-color: #d0e0ff; }
-            """)
+            close_button.setStyleSheet(WidgetStyles.get_action_button_style())
             msg_box.addButton(open_button, QMessageBox.ActionRole)
             msg_box.addButton(close_button, QMessageBox.RejectRole)
-            msg_box.setStyleSheet("""
-                QMessageBox { background-color: white; }
-                QLabel { margin-bottom: 10px; }
-            """)
+            msg_box.setStyleSheet(WidgetStyles.get_success_message_style())
             msg_box.exec_()
             if msg_box.clickedButton() == open_button:
                 directory_path = str(Path(epub_path).parent)
@@ -506,31 +466,71 @@ class FileTranslationDialog(QDialog):
             error_icon = QLabel(msg_box)
             error_icon.setPixmap(self.qta.icon('fa5s.exclamation-triangle', color='#f44336').pixmap(48, 48))
             msg_box.setIconPixmap(error_icon.pixmap())
-            msg_box.setStyleSheet("""
-                QMessageBox { background-color: white; }
-                QPushButton {
-                    background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
-                    border-radius: 6px; padding: 6px 12px; font-size: 13px;
-                }
-                QPushButton:hover { background-color: #e0f0ff; }
-                QPushButton:pressed { background-color: #d0e0ff; }
-            """)
+            msg_box.setStyleSheet(WidgetStyles.get_message_box_style())
             msg_box.exec_()
         if self.current_history_id:
             HistoryManager.update_task(self.current_history_id, {"status": "Success" if success else "Error"})
 
     def show_chapter_progress(self):
-        if not self.thread or not self.thread.file_handler:
-            self.show_error_message("Unavailable", "Chapter progress is not available at this time.")
+        file_handler = None
+        start_chapter = self.start_spin.value() if self.chapter_range_btn.isChecked() else None
+        end_chapter = self.end_spin.value() if self.chapter_range_btn.isChecked() else None
+        
+        if self.thread and self.thread.file_handler:
+            # Use the existing thread's file handler
+            file_handler = self.thread.file_handler
+        else:
+            # No active thread, try to get book_dir from task history
+            from pathlib import Path
+            from translator.file_handler import FileHandler
+            
+            book_dir = None
+            
+            # Try to get book_dir from current task history if we have a task ID
+            if self.current_history_id:
+                task = HistoryManager.get_task_by_id(self.current_history_id)
+                if task and "book_dir" in task:
+                    book_dir_str = task.get("book_dir")
+                    potential_book_dir = Path(book_dir_str)
+                    if potential_book_dir.exists() and potential_book_dir.is_dir():
+                        book_dir = potential_book_dir
+            
+            # If we couldn't get book_dir from history, try to find it
+            if not book_dir and hasattr(self, 'output_edit') and self.output_edit.text().strip():
+                output_dir = Path(self.output_edit.text().strip())
+                
+                # Try to find book directory based on title
+                if self.title_edit.text().strip():
+                    sanitized_title = self.title_edit.text().strip().replace('/', '_').replace('\\', '_')
+                    potential_book_dir = output_dir / sanitized_title
+                    if potential_book_dir.exists() and potential_book_dir.is_dir():
+                        book_dir = potential_book_dir
+                
+                # If still not found, search for any book directories with progress.json
+                if not book_dir:
+                    for subdir in output_dir.glob("*"):
+                        if subdir.is_dir() and (subdir / "progress.json").exists():
+                            book_dir = subdir
+                            break
+            
+            # Create file handler if we found a valid book directory
+            if book_dir:
+                file_handler = FileHandler(book_dir, start_chapter, end_chapter)
+        
+        if not file_handler:
+            # No file handler available
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Information")
+            msg_box.setText("No progress data found. Please ensure you've selected a valid output directory containing book data.")
+            msg_box.setIcon(QMessageBox.Information)
+            msg_box.setStyleSheet(WidgetStyles.get_message_box_style())
+            msg_box.exec_()
             return
+        
         def status_getter():
-            if self.thread and self.thread.file_handler:
-                return self.thread.file_handler.get_chapter_status(
-                    self.start_spin.value() if self.chapter_range_btn.isChecked() else None,
-                    self.end_spin.value() if self.chapter_range_btn.isChecked() else None
-                )
-            return {}
-        dialog = EnhancedProgressDialog(status_getter, self)
+            return file_handler.get_chapter_status(start_chapter, end_chapter)
+            
+        dialog = EnhancedProgressDialog(status_getter, self, file_handler)
         dialog.exec_()
 
     def toggle_log(self):
@@ -547,7 +547,7 @@ class FileTranslationDialog(QDialog):
         self.file_path = task.get("file_path", "")
         self.file_edit.setText(self.file_path)
         self.title_edit.setText(task.get("book_title", ""))
-        self.author_edit.setText(task.get("book_author", ""))
+        self.author_edit.setText(task.get("author", ""))
         model_name = task.get("model_name", "gemini-2.0-flash")
         index = self.model_combo.findText(model_name)
         if index >= 0:
@@ -575,3 +575,21 @@ class FileTranslationDialog(QDialog):
         self.start_btn.setIcon(self.qta.icon('fa5s.play', color='white'))
         self.progress_bar.setValue(0)
         self.stage_label.setText("Current Stage: Idle")
+
+    def load_default_settings(self):
+        """Load default settings from QSettings"""
+        # Set default model
+        default_model = self.settings.value("DefaultModel", "gemini-2.0-flash")
+        index = self.model_combo.findText(default_model)
+        if index >= 0:
+            self.model_combo.setCurrentIndex(index)
+
+        # Set default style
+        default_style = self.settings.value("DefaultStyle", 1, type=int)
+        index = self.style_combo.findData(default_style)
+        if index >= 0:
+            self.style_combo.setCurrentIndex(index)
+
+        # Set default output directory
+        default_output_dir = self.settings.value("DefaultOutputDir", str(Path.home() / "Downloads"))
+        self.output_edit.setText(default_output_dir)

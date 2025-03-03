@@ -24,14 +24,6 @@ def extract_chapter_number(filename: str) -> Optional[int]:
     return int(match.group()) if match else None
 
 
-def generate_chapter_suffix(start: Optional[int], end: Optional[int]) -> str:
-    if start is None and end is None:
-        return ""
-    start_str = str(start) if start is not None else "begin"
-    end_str = str(end) if end is not None else "end"
-    return f"_{start_str}_{end_str}"
-
-
 def sanitize_path_name(name: str) -> str:
     """Sanitize the directory name to remove invalid characters."""
     invalid_chars = '<>:"/\\|?*'

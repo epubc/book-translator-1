@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButt
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import QSize, QSettings, Qt
 import qtawesome as qta
-from gui.translation_dialog import TranslationDialog
+from gui.web_translation_dialog import WebTranslationDialog
 from gui.file_translation_dialog import FileTranslationDialog
 from gui.history_dialog import TranslationHistoryDialog
 from gui.settings_dialog import SettingsDialog
@@ -67,7 +67,7 @@ class MainWindow(QMainWindow):
         return button
 
     def show_translate_dialog(self):
-        dialog = TranslationDialog.get_instance(self)
+        dialog = WebTranslationDialog.get_instance(self)
         dialog.setModal(False)
         dialog.show()
 

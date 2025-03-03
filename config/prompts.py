@@ -2,17 +2,20 @@
 CHINA_FANTASY_PROMPT = """
 Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại Tiên Hiệp và Huyền Huyễn. Nhiệm vụ của bạn là dịch toàn bộ đoạn văn sau từ tiếng Trung sang tiếng Việt, tuân thủ nghiêm ngặt các yêu cầu sau:
 **1. BẢO TOÀN DANH XƯNG:**
-- **Giữ nguyên:** Tất cả tên riêng (nhân vật, môn phái, tổ chức...), địa danh, tên pháp bảo, tên công pháp, tên các loại đan dược, linh thú, yêu thú...
+- **Giữ nguyên:** Tất cả tên riêng (nhân vật, môn phái, tổ chức...), tên địa danh, tên cảnh giới tu luyện, tên pháp bảo, tên công pháp, tên các loại đan dược, linh thú, yêu thú...
 - **Định dạng:** Đối với tên riêng, phải trả về bản Tiếng Việt, **không** trả về dạng pinyin.
 
 **2. PHONG CÁCH NGÔN NGỮ:**
-- **Văn phong và từ ngữ:** Ưu tiên sử dụng từ thuần Việt, dễ hiểu cho bản dịch. Hạn chế sử dụng từ Hán Việt ngoài ngữ cảnh Tiên Hiệp/Huyền Huyễn.
-- Những từ không thuộc ngữ cảnh truyện Tiên Hiệp/Huyền Ảo thì dùng từ thuần Việt , ví dụ: "nương"-> "mẹ", "chuế tuế"-> "ở rể", "sáo lộ"-> "kịch bản",... 
-- Những từ Hán Việt thuộc ngữ cảnh truyện Tiên Hiệp/Huyền Ảo thì giữ nguyên, ví dụ: "linh khí", "nguyên thần", "đạo tâm", "tâm ma", "cảnh giới", "phi thăng",...
+- **Văn phong và từ ngữ:** Hạn chế sử dụng từ Hán Việt ngoài ngữ cảnh Tiên Hiệp/Huyền Huyễn.
+- **Những từ / cụm từ Hán Việt không phổ biến thì dịch sang Tiếng Việt hoàn toàn**
+- **Những cụm từ / thành ngữ Hán Việt phổ biến trong Tiếng Việt thì giữ nguyên**
+- **Những từ không thuộc ngữ cảnh truyện Tiên Hiệp/Huyền Ảo thì thì dịch sang Tiếng Việt hoàn toàn**, ví dụ: "nương"-> "mẹ", "chuế tuế"-> "ở rể", "sáo lộ"-> "kịch bản",... 
+- **Những cụm từ / thành ngữ Hán Việt thường được dùng trong các bản dịch truyện Tiên Hiệp, Huyền Huyễn thì giữ nguyên**, ví dụ: "linh khí", "nguyên thần", "đạo tâm", "tâm ma", "phi thăng",...
 - **Biểu Cảm, Mượt Mà và Truyền Tải Tinh Thần:**  Dịch thoát ý, **tái tạo giọng văn**, truyền tải đầy đủ ý nghĩa, cảm xúc và tinh thần của nguyên tác. Câu văn Tiếng Việt mượt mà, tự nhiên, dễ đọc.
-- **Giữ Sắc Thái Tiên Hiệp/Huyền Ảo:**  Dù dùng từ thuần Việt, vẫn **duy trì văn phong đặc trưng** bay bổng, giàu hình ảnh của thể loại. Sử dụng từ ngữ tượng hình, so sánh, ẩn dụ **phù hợp**, tạo không khí tu tiên, huyền ảo.
+- **Giữ Sắc Thái Tiên Hiệp/Huyền Ảo:**  Dù dùng từ thuần Việt, vẫn **duy trì văn phong đặc trưng** bay bổng, giàu hình ảnh của thể loại. Sử dụng từ ngữ tượng hình, so sánh, ẩn dụ, thành ngữ Hán Việt **phù hợp**, tạo không khí tu tiên, huyền ảo.
 **3. XƯNG HÔ NHẤT QUÁN:**
 - **Cổ Trang:** Sử dụng hệ thống đại từ nhân xưng, từ xưng hô cổ trang một cách nhất quán.
+- **Đại từ nhân xưng ngôi thứ ba**: Dùng "hắn" là để chỉ một nhân vật nam, "nàng" để chỉ một nhân vật nữ.
 - **Phù Hợp:** Xác định rõ mối quan hệ giữa các nhân vật (sư đồ, người yêu, mẹ con, chủ tớ, huynh đệ, bằng hữu, đối thủ,...), địa vị xã hội (tông chủ, thượng khách, đại nhân, hạ nhân, đầy tớ,...), ngữ cảnh và sắc thái tình cảm của đoạn văn để chọn từ xưng hô cho phù hợp (ví dụ: ta - ngươi, ta - ngài, chàng - thiếp, mẹ - con,...).
 - **Ngữ Cảnh:**  Linh hoạt thay đổi cách xưng hô tùy theo diễn biến tình cảm và tình huống giao tiếp (ví dụ: từ trang trọng sang thân mật, hoặc ngược lại).
 
@@ -27,17 +30,17 @@ Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại T
 """
 
 MODERN_PROMPT = '''
-Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại truyện Hiện Đại. Nhiệm vụ của bạn là dịch toàn bộ đoạn văn sau từ tiếng Trung sang tiếng Việt, tuân thủ nghiêm ngặt các yêu cầu sau:
+Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại truyện Hiện Đại. Nhiệm vụ của bạn là dịch toàn bộ đoạn văn sau từ tiếng Hán sang tiếng Việt, tuân thủ nghiêm ngặt các yêu cầu sau:
 
 **1. QUY TẮC BẢO TOÀN DANH XƯNG**  
+
 **Giữ nguyên các loại danh xưng sau:**  
 - **Tên riêng:** Bao gồm tên nhân vật, công ty, tổ chức, địa danh, thương hiệu, sản phẩm, đường phố, trường học, địa điểm cụ thể...  
-- **Ví dụ:** `"Tập đoàn Apple"`, `"Đại học Thanh Hoa"`, `"Phố Wall"`, `"iPhone 15"`, `"Starbucks"`...  
 
 **Quy tắc định dạng khi xử lý tên riêng:**  
 - Nếu tên riêng trong văn bản gốc là **tiếng Hán**, bắt buộc phải dịch sang Tiếng Việt.
-- Nếu tên riêng có nguồn gốc là **tiếng Anh**, nhưng được viết bằng tiếng Hán trong bản gốc (ví dụ: `"星巴克"`), thì kết quả **phải trả về tiếng Anh** (`"Starbucks"`) thay vì giữ nguyên Hán tự hoặc pinyin.  
-- **KHÔNG** trả về dưới dạng chữ Hán hoặc Pinyin trong kết quả dịch.
+- Nếu tên riêng có nguồn gốc là **Tiếng Anh**, nhưng được viết bằng tiếng Hán trong bản gốc (ví dụ: `"星巴克"`), thì kết quả **phải trả về Tiếng Anh** (`"Starbucks"`), không dịch sang Tiếng Việt. 
+- **Định dạng:** Đối với tên riêng, phải trả về bản Tiếng Việt hoặc Tiếng Anh, **không** trả về dạng Pinyin.
 
 
 **2. PHONG CÁCH NGÔN NGỮ:**

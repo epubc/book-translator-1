@@ -6,22 +6,11 @@ from typing import Optional
 from config import settings
 
 
-def configure_logging(
-        book_dir: Path,
-        start_chapter: Optional[int] = None,
-        end_chapter: Optional[int] = None
-) -> None:
+def configure_logging(book_dir: Path) -> None:
     """Configures logging with chapter-range specific filenames."""
     base_log_path = Path("operation.log")
 
-    # Generate chapter suffix if needed
-    chapter_suffix = _generate_chapter_suffix(start_chapter, end_chapter)
-
-    # Create modified log filename
-    log_stem = base_log_path.stem + chapter_suffix
-    log_filename = log_stem + base_log_path.suffix
-    log_file_path = book_dir / log_filename
-
+    log_file_path = book_dir / base_log_path.stem
     log_level = settings.LOG_LEVEL.upper()
 
     # Remove any existing file handlers to prevent duplicate logging
@@ -52,15 +41,6 @@ def configure_logging(
     logging.root.setLevel(log_level)
     logging.info(f"Logging configured to file: {log_file_path}")
 
-
-def _generate_chapter_suffix(start: Optional[int], end: Optional[int]) -> str:
-    """Generate filename suffix based on chapter range."""
-    parts = []
-    if start is not None:
-        parts.append(f"{start}")
-    if end is not None:
-        parts.append(f"{end}")
-    return "_" + "_".join(parts) if parts else ""
 
 def log_exception(e: Exception, message: str = "An exception occurred"):
     """Utility function to log exceptions with detailed info."""

@@ -1,4 +1,3 @@
-
 class ButtonStyles:
     """Centralized button styles for consistent UI across the application"""
 
@@ -386,7 +385,8 @@ class WidgetStyles:
                 border-radius: 4px;
                 border: 1px solid {colors["dark"]};
                 background-color: white;
-                min-width: 120px;
+                width: 150px;
+                min-width: 150px;
             }}
             QComboBox:hover {{
                 border-color: {colors["darker"]};
@@ -469,4 +469,45 @@ class WidgetStyles:
             QRadioButton::indicator:checked::middle {{
                 image: url(:/icons/radio_inner.png);
             }}
+        """
+
+    @staticmethod
+    def get_checkable_button_style():
+        """Style for checkable buttons."""
+        return """
+            QPushButton:checked {
+                background-color: #90CAF9;
+            }
+        """
+    
+    @staticmethod
+    def get_message_box_style():
+        """Style for QMessageBox."""
+        return """
+            QMessageBox { background-color: white; }
+            QPushButton {
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 6px 12px; font-size: 13px;
+            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
+        """
+    
+    @staticmethod
+    def get_success_message_style():
+        """Style for success message boxes."""
+        return WidgetStyles.get_message_box_style() + """
+            QLabel { margin-bottom: 10px; }
+        """
+    
+    @staticmethod
+    def get_action_button_style():
+        """Style for action buttons in dialogs."""
+        return """
+            QPushButton {
+                background-color: #f0f8ff; color: #333333; border: 1px solid #ccc;
+                border-radius: 6px; padding: 8px 16px; font-size: 13px;
+            }
+            QPushButton:hover { background-color: #e0f0ff; }
+            QPushButton:pressed { background-color: #d0e0ff; }
         """

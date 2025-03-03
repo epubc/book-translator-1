@@ -1,10 +1,10 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
-                             QTableWidget, QTableWidgetItem, QMessageBox, QFrame)
+                             QTableWidget, QTableWidgetItem, QMessageBox, QFrame, QFormLayout, QDialogButtonBox)
 from PyQt5.QtCore import Qt, QSize
 import qtawesome as qta
 from core.history_manager import HistoryManager
-from gui.button_styles import ButtonStyles
-from gui.translation_dialog import TranslationDialog
+from gui.ui_styles import ButtonStyles
+from gui.web_translation_dialog import WebTranslationDialog
 from gui.file_translation_dialog import FileTranslationDialog
 from translator.text_processing import normalize_unicode_text
 
@@ -52,7 +52,7 @@ class TranslationHistoryDialog(QDialog):
         search_icon = QLabel()
         search_icon.setPixmap(qta.icon("mdi.magnify", color="#505050").pixmap(18, 18))
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Search by Title, URL, or File Path")
+        self.search_edit.setPlaceholderText("Search by Title, Author, URL, or File Path")
         self.search_edit.setStyleSheet("""
             QLineEdit {
                 border: 1px solid #bbb;
@@ -85,8 +85,8 @@ class TranslationHistoryDialog(QDialog):
         table_layout = QVBoxLayout(table_frame)
         table_layout.setContentsMargins(5, 5, 5, 5)
 
-        self.table = QTableWidget(0, 10)
-        self.table.setHorizontalHeaderLabels(["Timestamp", "Task Type", "Book Title", "Source", "Model", "Prompt Style",
+        self.table = QTableWidget(0, 11)
+        self.table.setHorizontalHeaderLabels(["Timestamp", "Task Type", "Book Title", "Author", "Source", "Model", "Prompt Style",
                                               "Start Chapter", "End Chapter", "Output Directory", "Status"])
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setAlternatingRowColors(True)
@@ -128,6 +128,13 @@ class TranslationHistoryDialog(QDialog):
         load_btn.setIconSize(QSize(20, 20))
         load_btn.setStyleSheet(ButtonStyles.get_primary_style())
         load_btn.clicked.connect(self.load_selected_task)
+        
+        # Edit Button
+        edit_btn = QPushButton("Edit Task")
+        edit_btn.setIcon(qta.icon("mdi.pencil", color="#FFFFFF"))
+        edit_btn.setIconSize(QSize(20, 20))
+        edit_btn.setStyleSheet(ButtonStyles.get_secondary_style())
+        edit_btn.clicked.connect(self.edit_selected_task)
 
         # Danger Button (Remove)
         remove_btn = QPushButton("Remove Selected")
@@ -151,6 +158,7 @@ class TranslationHistoryDialog(QDialog):
         close_btn.clicked.connect(self.close)
 
         btn_layout.addWidget(load_btn)
+        btn_layout.addWidget(edit_btn)
         btn_layout.addWidget(remove_btn)
         btn_layout.addWidget(refresh_btn)
         btn_layout.addWidget(close_btn)
@@ -169,6 +177,7 @@ class TranslationHistoryDialog(QDialog):
         display_tasks = [
             task for task in self.history_tasks
             if search_text in normalize_unicode_text(task.get("book_title", "").lower())
+               or search_text in normalize_unicode_text(task.get("author", "").lower())
                or (task.get('task_type') == 'web' and search_text in task.get("book_url", "").lower())
                or (task.get('task_type') == 'file' and search_text in task.get("file_path", "").lower())
         ]
@@ -192,13 +201,14 @@ class TranslationHistoryDialog(QDialog):
             self.table.setItem(rowPosition, 1, task_type_item)
 
             self.table.setItem(rowPosition, 2, QTableWidgetItem(task.get("book_title", "")))
+            self.table.setItem(rowPosition, 3, QTableWidgetItem(task.get("author", "")))
             source = task.get("book_url", task.get("file_path", ""))
-            self.table.setItem(rowPosition, 3, QTableWidgetItem(source))
-            self.table.setItem(rowPosition, 4, QTableWidgetItem(task.get("model_name", "")))
-            self.table.setItem(rowPosition, 5, QTableWidgetItem(str(task.get("prompt_style", ""))))
-            self.table.setItem(rowPosition, 6, QTableWidgetItem(str(task.get("start_chapter", ""))))
-            self.table.setItem(rowPosition, 7, QTableWidgetItem(str(task.get("end_chapter", ""))))
-            self.table.setItem(rowPosition, 8, QTableWidgetItem(task.get("output_directory", "")))
+            self.table.setItem(rowPosition, 4, QTableWidgetItem(source))
+            self.table.setItem(rowPosition, 5, QTableWidgetItem(task.get("model_name", "")))
+            self.table.setItem(rowPosition, 6, QTableWidgetItem(str(task.get("prompt_style", ""))))
+            self.table.setItem(rowPosition, 7, QTableWidgetItem(str(task.get("start_chapter", ""))))
+            self.table.setItem(rowPosition, 8, QTableWidgetItem(str(task.get("end_chapter", ""))))
+            self.table.setItem(rowPosition, 9, QTableWidgetItem(task.get("output_directory", "")))
 
             # Status with color coding
             status = task.get("status", "")
@@ -214,7 +224,7 @@ class TranslationHistoryDialog(QDialog):
                 status_item.setForeground(Qt.red)
             else:
                 status_item.setIcon(qta.icon("mdi.help-circle", color="gray"))
-            self.table.setItem(rowPosition, 9, status_item)
+            self.table.setItem(rowPosition, 10, status_item)
 
         self.table.setSortingEnabled(True)
 
@@ -255,7 +265,7 @@ class TranslationHistoryDialog(QDialog):
 
         if task:
             if task.get("task_type") == "web":
-                dialog = TranslationDialog.get_instance(self.parent())
+                dialog = WebTranslationDialog.get_instance(self.parent())
             elif task.get("task_type") == "file":
                 dialog = FileTranslationDialog.get_instance(self.parent())
             else:
@@ -378,3 +388,151 @@ class TranslationHistoryDialog(QDialog):
         if confirm_box.exec_() == QMessageBox.Yes:
             HistoryManager.remove_task_by_id(task_id)
             self.load_history()
+
+    def edit_selected_task(self):
+        """Allow the user to edit the Title and Author fields of a selected task."""
+        selected_rows = self.table.selectionModel().selectedRows()
+        if not selected_rows:
+            message_box = QMessageBox()
+            message_box.setIcon(QMessageBox.Warning)
+            message_box.setWindowTitle("No Selection")
+            message_box.setText("Please select a task to edit.")
+            message_box.setStandardButtons(QMessageBox.Ok)
+            message_box.setStyleSheet("""
+                QMessageBox {
+                    background-color: white;
+                }
+                QPushButton {
+                    background-color: #2196F3;
+                    color: white;
+                    padding: 8px 15px;
+                    border-radius: 5px;
+                    border: 1px solid #1976D2;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #1565C0;
+                }
+            """)
+            message_box.exec_()
+            return
+
+        row = selected_rows[0].row()
+        task_id = self.table.item(row, 0).data(Qt.UserRole)
+        task = next((t for t in self.history_tasks if t["id"] == task_id), None)
+
+        if task:
+            # Create a dialog for editing
+            edit_dialog = QDialog(self)
+            edit_dialog.setWindowTitle("Edit Task")
+            edit_dialog.setFixedWidth(400)
+            edit_dialog.setStyleSheet("""
+                QDialog {
+                    background-color: white;
+                }
+            """)
+            
+            layout = QVBoxLayout(edit_dialog)
+            layout.setContentsMargins(20, 20, 20, 20)
+            layout.setSpacing(15)
+            
+            # Form layout for the fields
+            form_layout = QFormLayout()
+            form_layout.setVerticalSpacing(12)
+            form_layout.setHorizontalSpacing(15)
+            
+            # Book Title field
+            title_edit = QLineEdit(task.get("book_title", ""))
+            title_edit.setStyleSheet("""
+                QLineEdit {
+                    border: 1px solid #bbb;
+                    border-radius: 5px;
+                    padding: 8px;
+                    background-color: white;
+                }
+                QLineEdit:focus {
+                    border: 1px solid #4CAF50;
+                }
+            """)
+            form_layout.addRow("Book Title:", title_edit)
+            
+            # Author field - add only if the task structure has this field
+            author_edit = QLineEdit(task.get("author", ""))
+            author_edit.setStyleSheet("""
+                QLineEdit {
+                    border: 1px solid #bbb;
+                    border-radius: 5px;
+                    padding: 8px;
+                    background-color: white;
+                }
+                QLineEdit:focus {
+                    border: 1px solid #4CAF50;
+                }
+            """)
+            form_layout.addRow("Author:", author_edit)
+            
+            layout.addLayout(form_layout)
+            
+            # Add a note that other fields can't be edited
+            note_label = QLabel("Note: Other fields cannot be modified from the history screen.")
+            note_label.setStyleSheet("color: #757575; font-style: italic;")
+            layout.addWidget(note_label)
+            
+            # Buttons
+            buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            buttons.button(QDialogButtonBox.Save).setStyleSheet(ButtonStyles.get_primary_style())
+            buttons.button(QDialogButtonBox.Cancel).setStyleSheet(ButtonStyles.get_neutral_style())
+            buttons.accepted.connect(edit_dialog.accept)
+            buttons.rejected.connect(edit_dialog.reject)
+            layout.addWidget(buttons)
+            
+            # Show the dialog and process the result
+            if edit_dialog.exec_() == QDialog.Accepted:
+                # Update the task with new values
+                updates = {
+                    "book_title": title_edit.text(),
+                    "author": author_edit.text()
+                }
+                HistoryManager.update_task(task_id, updates)
+                
+                # Also update the book_info in state.json of the book directory
+                book_dir = task.get("book_dir")
+                if book_dir:
+                    HistoryManager.update_book_state_json(
+                        book_dir=book_dir,
+                        book_title=title_edit.text(),
+                        author=author_edit.text()
+                    )
+                
+                self.load_history()  # Refresh the table
+                
+                # Show a success message
+                QMessageBox.information(
+                    self, 
+                    "Task Updated", 
+                    "The task details have been updated successfully.",
+                    QMessageBox.Ok
+                )
+        else:
+            message_box = QMessageBox()
+            message_box.setIcon(QMessageBox.Warning)
+            message_box.setWindowTitle("Error")
+            message_box.setText("Selected task not found.")
+            message_box.setStandardButtons(QMessageBox.Ok)
+            message_box.setStyleSheet("""
+                QMessageBox {
+                    background-color: white;
+                }
+                QPushButton {
+                    background-color: #2196F3;
+                    color: white;
+                    padding: 8px 15px;
+                    border-radius: 5px;
+                    border: 1px solid #1976D2;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #1565C0;
+                }
+            """)
+            message_box.exec_()
