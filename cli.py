@@ -50,7 +50,7 @@ def main() -> None:
                                             end_chapter=end_chapter)
 
         logging.info("--- Stage 4: Generating EPUB ---")
-        epub_path = file_handler.generate_epub(book_info.title, book_info.author)
+        epub_path = file_handler.generate_epub(book_info.title, book_info.author, cover_image='')
         if epub_path:
             logging.info(f"EPUB file successfully created: {epub_path}")
         else:

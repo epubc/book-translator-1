@@ -64,7 +64,21 @@ class Translator:
         logging.info("Starting translation process for: %s (chapters %s-%s)",
                      self.file_handler.book_dir, start_chapter or 'begin', end_chapter or 'end')
         self._stop_requested = False  # Reset cancellation flag before starting
-
+        
+        # Check if there was a previous clean cancellation and reset progress markers if needed
+        try:
+            progress_data = self.file_handler.load_progress()
+            if progress_data.get("clean_cancellation", False):
+                logging.info("Detected previous clean cancellation, resetting batch timing data")
+                if "last_batch_time" in progress_data:
+                    progress_data.pop("last_batch_time")
+                if "last_batch_size" in progress_data:
+                    progress_data.pop("last_batch_size")
+                progress_data.pop("clean_cancellation", None)
+                self.file_handler.save_progress(progress_data)
+        except Exception as e:
+            logging.warning(f"Failed to check cancellation status: {e}")
+        
         while not self._stop_requested and not self.file_handler.is_translation_complete(start_chapter, end_chapter):
             futures = self._process_translation_batch(prompt_style, start_chapter, end_chapter)
             concurrent.futures.wait(futures)
@@ -304,5 +318,16 @@ class Translator:
         return self._translate(self.model, text, prompt_style=prompt_style)
 
     def stop(self):
-        print("Translator stop() called")
+        """Stop all translation operations and clean up resources."""
+        logging.info("Translator stop() called - cancelling all translation operations")
         self._stop_requested = True
+        
+        # Ensure any pending progress data is saved
+        if self.file_handler:
+            try:
+                progress_data = self.file_handler.load_progress()
+                # Mark in progress data that we had a clean cancellation
+                progress_data["clean_cancellation"] = True
+                self.file_handler.save_progress(progress_data)
+            except Exception as e:
+                logging.error(f"Error saving cancellation state: {e}")

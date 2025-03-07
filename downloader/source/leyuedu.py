@@ -56,7 +56,7 @@ class LeYueDuDownloader(BaseBookDownloader):
         if not paragraphs:
             return None
 
-        text = "\n\n".join(p.get_text(strip=True) for p in paragraphs)
+        text = "\n".join(p.get_text(strip=True) for p in paragraphs)
         return preprocess_downloaded_text(text)
 
     def _extract_title(self, soup: BeautifulSoup) -> str:

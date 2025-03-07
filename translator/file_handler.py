@@ -248,26 +248,57 @@ class FileHandler:
         files_to_check = self.list_files_in_dir(responses_dir, "*.txt")
 
         for file_path in files_to_check:
-            content = self.load_content_from_file(file_path.name, "translation_responses")
-            original_content = self.load_content_from_file(file_path.name, "prompt_files")
-            reasons = []
+            try:
+                content = self.load_content_from_file(file_path.name, "translation_responses")
+                if content is None:  # File couldn't be read
+                    if self.delete_file(file_path.name, "translation_responses"):
+                        deleted_count += 1
+                        logging.warning(f"Deleted unreadable translation: {file_path.name}")
+                    continue
+                
+                original_content = self.load_content_from_file(file_path.name, "prompt_files")
+                if original_content is None:  # No corresponding prompt file
+                    if self.delete_file(file_path.name, "translation_responses"):
+                        deleted_count += 1
+                        logging.warning(f"Deleted translation with no prompt: {file_path.name}")
+                    continue
+                    
+                reasons = []
 
-            # Check 1: Short content (<=1 line)
-            if len(content.splitlines()) <= 1 < len(original_content.splitlines()):
-                reasons.append("Short content")
+                # Check 1: Short content (<=1 line)
+                if len(content.splitlines()) <= 1 < len(original_content.splitlines()):
+                    reasons.append("Short content")
 
-            # Check 2: Repeated words (20+ consecutive repeats)
-            if re.search(r'(\b\w+\b)(\W+\1){20,}', content, flags=re.IGNORECASE):
-                reasons.append("Repeated words")
+                # Check 2: Repeated words (20+ consecutive repeats)
+                if re.search(r'(\b\w+\b)(\W+\1){20,}', content, flags=re.IGNORECASE):
+                    reasons.append("Repeated words")
 
-            # Check 3: Repeated special characters (100+ consecutive)
-            if re.search(r'[_\-=]{100,}', content):
-                reasons.append("Repeated special characters")
+                # Check 3: Repeated special characters (100+ consecutive)
+                if re.search(r'[_\-=]{100,}', content):
+                    reasons.append("Repeated special characters")
+                    
+                # Check 4: Very low content to prompt ratio
+                if len(content) < len(original_content) * 0.3 and len(content.splitlines()) < len(original_content.splitlines()) * 0.5:
+                    reasons.append("Suspicious length ratio")
+                    
+                # Check 5: Incomplete translation (ending mid-sentence)
+                last_char = content.rstrip()[-1:] if content.rstrip() else ''
+                if last_char and last_char not in '.!?。…':
+                    # If the file ends without proper sentence termination AND is shorter than original
+                    if len(content) < len(original_content) * 0.9:
+                        reasons.append("Incomplete translation")
 
-            if reasons:
+                if reasons:
+                    if self.delete_file(file_path.name, "translation_responses"):
+                        deleted_count += 1
+                        logging.warning(f"Deleted likely invalid translation: {file_path.name} (Reasons: {', '.join(reasons)}).")
+            except Exception as e:
+                logging.error(f"Error checking translation file {file_path.name}: {str(e)}")
+                # If we can't process the file, it's safer to delete it
                 if self.delete_file(file_path.name, "translation_responses"):
                     deleted_count += 1
-                    logging.warning(f"Deleted likely invalid translation: {file_path.name} (Short content).")
+                    logging.warning(f"Deleted problematic translation file: {file_path.name}")
+                
         if deleted_count > 0:
             logging.info(f"Deleted {deleted_count} potentially invalid translation files.")
         else:

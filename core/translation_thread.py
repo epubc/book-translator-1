@@ -205,7 +205,7 @@ class TranslationThread(QThread):
         return epub_path
 
     def stop(self) -> None:
-        """Stop the translation process safely."""
+        """Stop the translation process safely and cleanup any in-progress resources."""
         self._is_running = False
 
         if self.downloader:
@@ -213,12 +213,29 @@ class TranslationThread(QThread):
         if self.translator:
             self.translator.stop()
 
+        # Ensure we wait for thread operations to complete gracefully
         if not self.wait(2000):  # Wait 2 seconds for thread to finish
             self.terminate()  # Force termination if not finished
-            self.update_log.emit("Process terminated.")
+            logging.warning("Translation process was forcibly terminated.")
         else:
-            self.update_log.emit("Process stopped gracefully.")
+            logging.info("Translation process stopped gracefully.")
+        
+        # Clean up batch progress tracking to avoid stale state when restarting
+        if self.file_handler and self.translator:
+            try:
+                progress_data = self.file_handler.load_progress()
+                # Reset batch timing data to ensure fresh start on next run
+                if "last_batch_time" in progress_data:
+                    progress_data.pop("last_batch_time")
+                if "last_batch_size" in progress_data:
+                    progress_data.pop("last_batch_size")
+                self.file_handler.save_progress(progress_data)
+                logging.info("Progress tracking data reset for clean restart.")
+            except Exception as e:
+                logging.error(f"Error cleaning up progress tracking: {e}")
 
+        # Full cleanup at the end
+        self._cleanup()
 
     def _cleanup(self) -> None:
         """Clean up resources after the process is complete."""

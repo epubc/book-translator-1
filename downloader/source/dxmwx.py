@@ -9,57 +9,43 @@ from downloader.factory import DownloaderFactory
 from translator.text_processing import preprocess_downloaded_text
 
 
-@DownloaderFactory.register(domains=["quanben.io", "www.quanben.io"])
-class QuanbenDownloader(BaseBookDownloader):
+@DownloaderFactory.register(domains=["www.dxmwx.org"])
+class DXMWXDownloader(BaseBookDownloader):
 
-    name = "quanben"
+    name = "dxmwx"
     bulk_download = True
-    concurrent_downloads = 100
+    concurrent_downloads = 50
     request_delay = 1
     source_language = "Chinese"
     enable_book_info_translation = True
 
 
     def _extract_book_id(self, url: str) -> str:
-        match = re.search(r"/([^/]+)/?$", url)
+        match = re.search(r"book/(\d+).html", url)
         if not match:
             raise ValueError("Invalid book URL format")
         return match.group(1)
 
     def _get_chapters(self) -> List[str]:
-        """Extract chapter links from the book page and generate all URLs between first and last."""
-        url = f"https://quanben.io/n/{self.book_id}/list.html"
+        """Extract chapter links from the book page."""
+        url = f"https://www.dxmwx.org/chapter/{self.book_id}.html"
         soup = self._get_page(self.session, url)
 
         if not soup:
             return []
 
-        # Extract all chapter links from the list pages
-        chapter_links = soup.select("ul.list3 li a[href]")
-        if not chapter_links:
-            return []
-
-        # Extract chapter numbers from hrefs
         chapters = []
-        for link in chapter_links:
-            href = link.get("href", "")
-            # Split the href to get the chapter number, e.g., '/n/daoguiyixian/1.html' -> 1
-            parts = href.strip('/').split('/')
-            if not parts:
-                continue
-            chapter_part = parts[-1].split('.')[0]
-            if chapter_part.isdigit():
-                chapters.append(int(chapter_part))
 
-        if not chapters:
-            return []
+        chapter_divs = soup.find_all("div", style=lambda s: s and "height:40px; line-height:40px;" in s)
 
-        first = min(chapters)
-        last = max(chapters)
+        for div in chapter_divs:
+            span_elements = div.find_all("span")
+            for span in span_elements:
+                a_tag = span.find("a")
+                if a_tag and a_tag.get("href"):
+                    chapters.append(a_tag["href"])
 
-        # Generate URLs from first to last chapter
-        base_url = f"https://quanben.io/n/{self.book_id}/"
-        return [f"{base_url}{i}.html" for i in range(first, last + 1)]
+        return [href if href.startswith("http") else f"https://www.dxmwx.org{href}" for href in chapters]
 
 
     def _download_chapter_content(self, session: requests.Session, chapter_url: str) -> Optional[str]:
@@ -77,10 +63,14 @@ class QuanbenDownloader(BaseBookDownloader):
         if not soup:
             return None
 
-        # First try to find content in the acontent div (original method)
-        content_div = soup.find('div', id='acontent', class_='acontent')
+        # Try to find content in the Lab_Contents div (based on provided HTML)
+        content_div = soup.find('div', id='Lab_Contents')
 
-        # If not found, try the new structure (articlebody > content)
+        # If not found, try the original structure (acontent div)
+        if not content_div:
+            content_div = soup.find('div', id='acontent', class_='acontent')
+
+        # If still not found, try the alternative structure (articlebody > content)
         if not content_div:
             articlebody = soup.find('div', class_='articlebody')
             if articlebody:
@@ -96,22 +86,31 @@ class QuanbenDownloader(BaseBookDownloader):
         # Extract text from paragraphs
         paragraphs = content_div.find_all('p')
         if not paragraphs:
-            return None
+            # If no paragraphs found, try getting text directly
+            text = content_div.get_text(strip=True)
+            if not text:
+                return None
+            return preprocess_downloaded_text(text)
 
         text = "\n".join(p.get_text(strip=True) for p in paragraphs)
         return preprocess_downloaded_text(text)
 
+
     def _extract_title(self, soup: BeautifulSoup) -> str:
-        return soup.find('h3').get_text(strip=True)
+        meta_title = soup.find("meta", property="og:novel:book_name")
+        if meta_title:
+            return meta_title.get("content", "").strip()
+        return ''
 
     def _extract_author(self, soup: BeautifulSoup) -> str:
-        return soup.find('span', itemprop="author").get_text(strip=True)
+        meta_author = soup.find("meta", property="og:novel:author")
+        if meta_author:
+            return meta_author.get("content", "").strip()
+        return ''
 
     def _extract_cover_img(self, soup: BeautifulSoup) -> str:
-        img_tag = soup.find('img', itemprop="image")
-        if not img_tag:
-            return ''
-
-        src = img_tag.get('src')
-        return src if src else ''
+        meta_cover = soup.find("meta", property="og:image")
+        if meta_cover:
+            return meta_cover.get("content", "").strip()
+        return ''
 

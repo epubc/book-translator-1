@@ -217,9 +217,9 @@ class BaseBookDownloader(ABC):
         )
         self._save_state()
 
-    def _get_page(self, session: requests.Session, url: str) -> Optional[BeautifulSoup]:
+    def _get_page(self, session: requests.Session, url: str, timeout: int = 5) -> Optional[BeautifulSoup]:
         try:
-            response = session.get(url, timeout=5)
+            response = session.get(url, timeout=timeout)
             response.raise_for_status()
             return BeautifulSoup(response.content, "html.parser")
         except Exception as e:
