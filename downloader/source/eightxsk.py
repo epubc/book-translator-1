@@ -1,8 +1,7 @@
 import re
-from typing import List, Optional
 import time
+from typing import List, Optional
 
-import requests
 from bs4 import BeautifulSoup
 
 from downloader.base import BaseBookDownloader
@@ -14,7 +13,7 @@ from translator.text_processing import preprocess_downloaded_text
 class EightXSKDownloader(BaseBookDownloader):
 
     name = "8xsk"
-    request_delay = 0.5
+    request_delay = 0.75
     source_language = "Chinese"
     enable_book_info_translation = True
 
@@ -34,7 +33,7 @@ class EightXSKDownloader(BaseBookDownloader):
 
         while page <= total_page:
             url = f"{base_url}{page}.html"
-            soup = self._get_page(self.session, url)
+            soup = self._get_page(url)
             if not soup:
                 break
 
@@ -49,8 +48,8 @@ class EightXSKDownloader(BaseBookDownloader):
 
         return chapters
 
-    def _download_chapter_content(self, session: requests.Session, chapter_url: str) -> Optional[str]:
-        soup = self._get_page(session, chapter_url)
+    def _download_chapter_content(self, chapter_url: str) -> Optional[str]:
+        soup = self._get_page(chapter_url)
         if not soup:
             return None
 

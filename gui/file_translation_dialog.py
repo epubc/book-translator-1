@@ -2,7 +2,7 @@ import logging
 from PyQt5 import sip
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
                              QComboBox, QSpinBox, QTextEdit, QProgressBar, QScrollArea, QFrame,
-                             QMessageBox, QFileDialog, QWidget, QFormLayout)
+                             QMessageBox, QFileDialog, QWidget, QFormLayout, QRadioButton, QButtonGroup)
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl, QSettings
 from PyQt5.QtGui import QFont, QTextCursor, QDesktopServices
 import datetime
@@ -13,7 +13,6 @@ from core.utils import QTextEditLogHandler
 from gui.ui_styles import WidgetStyles, ButtonStyles
 from gui.progress_dialog import EnhancedProgressDialog
 import qtawesome as qta
-from translator.file_handler import FileHandler
 
 class FileTranslationDialog(QDialog):
     active_instance = None
@@ -29,6 +28,7 @@ class FileTranslationDialog(QDialog):
         self.setWindowTitle("Translate from File")
         self.setMinimumSize(650, 550)
         self.file_path = None
+        self.input_type = "file"  # Can be "file" or "folder"
         self.thread = None
         self.log_handler = None
         self.current_history_id = None
@@ -82,22 +82,43 @@ class FileTranslationDialog(QDialog):
         form_layout.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
+        # Input type selection
+        input_type_layout = QHBoxLayout()
+        self.file_radio = QRadioButton("Single File")
+        self.file_radio.setChecked(True)
+        self.file_radio.toggled.connect(self.toggle_input_type)
+        self.folder_radio = QRadioButton("Folder (Each file as chapter)")
+        self.folder_radio.toggled.connect(self.toggle_input_type)
+        input_type_layout.addWidget(self.file_radio)
+        input_type_layout.addWidget(self.folder_radio)
+        input_type_layout.addStretch(1)
+        input_type_label = QLabel("Input Type:")
+        input_type_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
+        form_layout.addRow(input_type_label, input_type_layout)
+
         # File selection layout
         file_layout = QHBoxLayout()
         self.file_edit = QLineEdit()
         self.file_edit.setReadOnly(True)
         self.file_edit.setMinimumHeight(30)
         self.file_edit.setStyleSheet(WidgetStyles.get_input_style("primary"))
-        select_file_btn = QPushButton("Select File")
-        select_file_btn.setIcon(self.qta.icon('fa5s.folder-open', color='#555'))
-        select_file_btn.clicked.connect(self.select_file)
-        select_file_btn.setFixedWidth(120)
-        select_file_btn.setStyleSheet(ButtonStyles.get_secondary_style())
+        self.select_file_btn = QPushButton("Select File")
+        self.select_file_btn.setIcon(self.qta.icon('fa5s.folder-open', color='#555'))
+        self.select_file_btn.clicked.connect(self.select_file)
+        self.select_file_btn.setFixedWidth(120)
+        self.select_file_btn.setStyleSheet(ButtonStyles.get_secondary_style())
+        self.select_folder_btn = QPushButton("Select Folder")
+        self.select_folder_btn.setIcon(self.qta.icon('fa5s.folder-open', color='#555'))
+        self.select_folder_btn.clicked.connect(self.select_folder)
+        self.select_folder_btn.setFixedWidth(120)
+        self.select_folder_btn.setStyleSheet(ButtonStyles.get_secondary_style())
+        self.select_folder_btn.hide()  # Initially hidden
         file_layout.addWidget(self.file_edit, 1)
-        file_layout.addWidget(select_file_btn)
-        file_label = QLabel("File Path:")
-        file_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
-        form_layout.addRow(file_label, file_layout)
+        file_layout.addWidget(self.select_file_btn)
+        file_layout.addWidget(self.select_folder_btn)
+        self.file_path_label = QLabel("File Path:")
+        self.file_path_label.setStyleSheet(WidgetStyles.get_label_style("primary"))
+        form_layout.addRow(self.file_path_label, file_layout)
 
         # Book title
         self.title_edit = QLineEdit()
@@ -286,6 +307,24 @@ class FileTranslationDialog(QDialog):
 
         self.setLayout(main_layout)
 
+    def toggle_input_type(self):
+        """Toggle between file and folder input types."""
+        if self.file_radio.isChecked():
+            self.input_type = "file"
+            self.file_path_label.setText("File Path:")
+            self.select_file_btn.show()
+            self.select_folder_btn.hide()
+            self.chapter_range_btn.setEnabled(True)
+        else:  # Folder is selected
+            self.input_type = "folder"
+            self.file_path_label.setText("Folder Path:")
+            self.select_file_btn.hide()
+            self.select_folder_btn.show()
+            # Disable chapter range for folder input as each file is a chapter
+            self.chapter_range_btn.setChecked(False)
+            self.chapter_range_container.hide()
+            self.chapter_range_btn.setEnabled(False)
+
     def toggle_chapter_range(self):
         if self.chapter_range_btn.isChecked():
             self.chapter_range_container.show()
@@ -293,6 +332,18 @@ class FileTranslationDialog(QDialog):
         else:
             self.chapter_range_container.hide()
             self.chapter_range_btn.setIcon(self.qta.icon('fa5s.list-ol', color='#555'))
+
+    def select_folder(self):
+        """Open dialog to select a folder containing chapter files."""
+        folder_path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Folder with Chapter Files",
+            "",
+            options=QFileDialog.DontUseNativeDialog
+        )
+        if folder_path:
+            self.file_path = folder_path
+            self.file_edit.setText(folder_path)
 
     def on_cancel(self):
         if self.thread and self.thread.isRunning():
@@ -314,7 +365,8 @@ class FileTranslationDialog(QDialog):
                 self.start_btn.setEnabled(True)
                 self.accept()
         else:
-            self.reject()
+            # Instead of rejecting (which closes dialog), just hide the dialog
+            self.hide()
 
     def closeEvent(self, event):
         if self.thread and self.thread.isRunning():
@@ -333,12 +385,24 @@ class FileTranslationDialog(QDialog):
             self.deleteLater()
 
     def choose_directory(self):
-        directory = QFileDialog.getExistingDirectory(self, "Select Output Directory")
+        # Explicitly specify the parent and options to ensure dialog stays on top
+        directory = QFileDialog.getExistingDirectory(
+            self, 
+            "Select Output Directory",
+            options=QFileDialog.DontUseNativeDialog
+        )
         if directory:
             self.output_edit.setText(directory)
 
     def select_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select Text File", "", "Text Files (*.txt)")
+        # Explicitly specify the parent and options to ensure dialog stays on top
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, 
+            "Select Text File", 
+            "", 
+            "Text Files (*.txt)",
+            options=QFileDialog.DontUseNativeDialog
+        )
         if file_path:
             self.file_path = file_path
             self.file_edit.setText(file_path)
@@ -348,19 +412,50 @@ class FileTranslationDialog(QDialog):
         self.file_edit.setText(file_path)
 
     def validate_inputs(self):
-        if not self.file_path or not Path(self.file_path).is_file():
-            self.show_error_message("Validation Error", "Please select a valid text file.")
+        if not self.file_path:
+            self.show_error_message("Input Error", 
+                f"Please select a {'folder' if self.input_type == 'folder' else 'file'} first.")
             return False
+
+        if self.input_type == "folder":
+            folder_path = Path(self.file_path)
+            if not folder_path.is_dir():
+                self.show_error_message("Folder Error", "Selected path is not a valid folder.")
+                return False
+            
+            # Check if folder contains text files
+            txt_files = list(folder_path.glob("*.txt"))
+            if not txt_files:
+                self.show_error_message("Folder Error", "Selected folder doesn't contain any .txt files.")
+                return False
+
+        else:  # file mode
+            file_path = Path(self.file_path)
+            if not file_path.is_file():
+                self.show_error_message("File Error", "Selected file does not exist.")
+                return False
+            
+            if file_path.suffix.lower() != ".txt":
+                self.show_error_message("File Error", "Selected file must be a .txt file.")
+                return False
+
         if not self.title_edit.text().strip():
-            self.show_error_message("Validation Error", "Book title cannot be empty.")
+            self.show_error_message("Input Error", "Please enter a book title.")
             return False
+            
         if self.chapter_range_btn.isChecked():
             start_chapter = self.start_spin.value()
             end_chapter = self.end_spin.value()
             if start_chapter > end_chapter:
-                self.show_error_message("Validation Error",
-                                        "Start chapter cannot be greater than end chapter.")
+                self.show_error_message("Chapter Range Error",
+                                     "Start chapter cannot be greater than end chapter.")
                 return False
+
+        output_dir = Path(self.output_edit.text())
+        if not output_dir.exists() or not output_dir.is_dir():
+            self.show_error_message("Output Error", "Output directory does not exist.")
+            return False
+
         return True
 
     def show_error_message(self, title, message):
@@ -382,6 +477,7 @@ class FileTranslationDialog(QDialog):
         params = {
             'task_type': 'file',
             'file_path': self.file_path,
+            'input_type': self.input_type,  # Add input_type parameter
             'book_title': self.title_edit.text().strip(),
             'author': self.author_edit.text().strip() or 'Unknown',
             'model_name': self.model_combo.currentText(),
@@ -394,6 +490,7 @@ class FileTranslationDialog(QDialog):
             "timestamp": datetime.datetime.now().isoformat(),
             "task_type": "file",
             "file_path": self.file_path,
+            "input_type": self.input_type,  # Add input_type to history
             "book_title": self.title_edit.text().strip(),
             "author": self.author_edit.text().strip() or 'Unknown',
             "model_name": self.model_combo.currentText(),

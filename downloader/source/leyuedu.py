@@ -2,7 +2,6 @@ import re
 from typing import List, Optional
 from urllib.parse import urlparse, urljoin
 
-import requests
 from bs4 import BeautifulSoup
 
 from downloader.base import BaseBookDownloader
@@ -31,15 +30,15 @@ class LeYueDuDownloader(BaseBookDownloader):
         path = parsed_url.path.replace("/book/", "/read/").replace(".html", "")
         chapters_url = urljoin(self.url, f"{path}/")
 
-        soup = self._get_page(self.session, chapters_url)
+        soup = self._get_page(chapters_url)
         if not soup:
             return []
 
         chapter_links = soup.select("div#catalog ul li a[href]")
         return [urljoin(chapters_url, a["href"]) for a in chapter_links]
 
-    def _download_chapter_content(self, session: requests.Session, chapter_url: str) -> Optional[str]:
-        soup = self._get_page(session, chapter_url)
+    def _download_chapter_content(self, chapter_url: str) -> Optional[str]:
+        soup = self._get_page(chapter_url)
         if not soup:
             return None
 

@@ -9,9 +9,9 @@ from selenium_stealth import stealth
 import undetected_chromedriver as uc
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
+import httpx
 
 from downloader.base import BaseBookDownloader
-from downloader.factory import DownloaderFactory
 from translator.text_processing import preprocess_downloaded_text
 
 
@@ -20,7 +20,7 @@ class EightXSKSeleniumDownloader(BaseBookDownloader):
     """
     Downloads books from 8xsk.cc website, using a hybrid approach:
     - Selenium for the main book page to bypass Cloudflare protection
-    - Regular requests for all other pages (chapter lists, chapter content) for better performance
+    - httpx for all other pages (chapter lists, chapter content) for better performance
     """
     name = "8xsk_selenium"
     request_delay = 0.5
@@ -99,7 +99,7 @@ class EightXSKSeleniumDownloader(BaseBookDownloader):
     def _fetch_main_page_with_selenium(self, url: str) -> Optional[BeautifulSoup]:
         """
         Uses Selenium to fetch the main book page and bypass Cloudflare.
-        Also transfers cookies to the requests session for subsequent requests.
+        Also transfers cookies to the httpx client for subsequent requests.
         
         Args:
             url: The main book page URL
@@ -126,9 +126,9 @@ class EightXSKSeleniumDownloader(BaseBookDownloader):
                 time.sleep(self.INITIAL_PAGE_LOAD_DELAY * 2)
                 page_source = self.driver.page_source
             
-            # Transfer cookies from Selenium to requests session for future requests
+            # Transfer cookies from Selenium to httpx client for future requests
             if not self.cookies_transferred:
-                self._transfer_cookies_to_requests()
+                self._transfer_cookies_to_client()
                 self.cookies_transferred = True
             
             return BeautifulSoup(page_source, "html.parser")
@@ -137,24 +137,31 @@ class EightXSKSeleniumDownloader(BaseBookDownloader):
             logging.error(f"Error fetching main page with Selenium: {e}")
             return None
     
-    def _transfer_cookies_to_requests(self) -> None:
-        """Transfer cookies from Selenium to the requests session."""
+    def _transfer_cookies_to_client(self) -> None:
+        """Transfer cookies from Selenium to the httpx client."""
         if self.driver:
             try:
                 selenium_cookies = self.driver.get_cookies()
+                # Create a new cookie jar for httpx
+                cookies = httpx.Cookies()
+                
                 for cookie in selenium_cookies:
-                    self.session.cookies.set(
+                    # Add each cookie to the jar
+                    cookies.set(
                         cookie['name'], 
                         cookie['value'], 
                         domain=cookie.get('domain', '')
                     )
-                logging.info(f"Transferred {len(selenium_cookies)} cookies to requests session")
+                
+                # Update the client's cookies
+                self.client.cookies = cookies
+                logging.info(f"Transferred {len(selenium_cookies)} cookies to httpx client")
             except Exception as e:
                 logging.error(f"Failed to transfer cookies: {e}")
     
-    def _fetch_page_with_requests(self, url: str) -> Optional[BeautifulSoup]:
+    def _fetch_page_with_httpx(self, url: str) -> Optional[BeautifulSoup]:
         """
-        Fetch a page using regular requests (for chapter lists and content).
+        Fetch a page using httpx client (for chapter lists and content).
         
         Args:
             url: The URL to fetch
@@ -163,8 +170,8 @@ class EightXSKSeleniumDownloader(BaseBookDownloader):
             Optional[BeautifulSoup]: Parsed HTML content or None if failed
         """
         try:
-            logging.info(f"Fetching with requests: {url}")
-            response = self.session.get(url, timeout=10)
+            logging.info(f"Fetching with httpx: {url}")
+            response = self.client.get(url, timeout=15.0)
             response.raise_for_status()
             
             # Pause to avoid rate limiting
@@ -172,7 +179,7 @@ class EightXSKSeleniumDownloader(BaseBookDownloader):
             
             return BeautifulSoup(response.text, "html.parser")
         except Exception as e:
-            logging.error(f"Error fetching with requests: {url} - {e}")
+            logging.error(f"Error fetching with httpx: {url} - {e}")
             return None
     
     def _extract_book_id(self, url: str) -> str:
@@ -184,7 +191,7 @@ class EightXSKSeleniumDownloader(BaseBookDownloader):
     
     def _get_chapters(self) -> List[str]:
         """
-        Retrieves chapter URLs from the paginated chapter list using regular requests.
+        Retrieves chapter URLs from the paginated chapter list using httpx client.
         
         Returns:
             List of chapter URLs
@@ -200,14 +207,13 @@ class EightXSKSeleniumDownloader(BaseBookDownloader):
             logging.info(f"Fetching chapter list page {page_num}: {page_url}")
             
             try:
-                # Use regular requests for chapter list pages
-                soup = self._fetch_page_with_requests(page_url)
+                # Use httpx for chapter list pages
+                soup = self._fetch_page_with_httpx(page_url)
                 if not soup:
                     logging.warning(f"Failed to fetch page {page_url}, stopping pagination")
                     break
                 
                 # Try multiple different selectors for chapter list (site sometimes changes)
-                chapter_info = None
                 for selector in ["dl.index#jieqi_page_contents", "dl#jieqi_page_contents", "dl.index"]:
                     chapter_info = soup.select_one(selector)
                     if chapter_info:
@@ -248,12 +254,11 @@ class EightXSKSeleniumDownloader(BaseBookDownloader):
         logging.info(f"Total chapters found: {len(chapter_links)}")
         return chapter_links
     
-    def _get_page(self, session, url: str, timeout: int = 5) -> Optional[BeautifulSoup]:
+    def _get_page(self, url: str, timeout: int = 5) -> Optional[BeautifulSoup]:
         """
-        Override _get_page to use Selenium for main book page and requests for others.
+        Override _get_page to use Selenium for main book page and httpx for others.
         
         Args:
-            session: Original session (not used)
             url: URL to fetch
             
         Returns:
@@ -264,22 +269,21 @@ class EightXSKSeleniumDownloader(BaseBookDownloader):
             # Use Selenium for main book page (Cloudflare bypass)
             return self._fetch_main_page_with_selenium(url)
         else:
-            # Use regular requests for all other pages
-            return self._fetch_page_with_requests(url)
+            # Use httpx for all other pages
+            return self._fetch_page_with_httpx(url)
     
-    def _download_chapter_content(self, session, chapter_url: str) -> Optional[str]:
+    def _download_chapter_content(self, chapter_url: str) -> Optional[str]:
         """
-        Downloads the content of a chapter using regular requests.
+        Downloads the content of a chapter using httpx client.
         
         Args:
-            session: Original session (not used)
             chapter_url: URL of the chapter
             
         Returns:
             Preprocessed chapter text if successful, None otherwise
         """
-        logging.info(f"Downloading chapter content from {chapter_url} using requests")
-        soup = self._fetch_page_with_requests(chapter_url)
+        logging.info(f"Downloading chapter content from {chapter_url} using httpx")
+        soup = self._fetch_page_with_httpx(chapter_url)
         if not soup:
             logging.warning(f"Failed to fetch chapter content from {chapter_url}")
             return None

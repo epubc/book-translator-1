@@ -295,10 +295,16 @@ class WebTranslationDialog(QDialog):
                 self.start_btn.setEnabled(True)
                 self.accept()
         else:
-            self.reject()
+            # Instead of rejecting (which closes dialog), just hide the dialog
+            self.hide()
 
     def choose_directory(self):
-        directory = QFileDialog.getExistingDirectory(self, "Select Output Directory")
+        # Explicitly specify the parent and options to ensure dialog stays on top
+        directory = QFileDialog.getExistingDirectory(
+            self, 
+            "Select Output Directory",
+            options=QFileDialog.DontUseNativeDialog
+        )
         if directory:
             self.output_edit.setText(directory)
 

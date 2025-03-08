@@ -1,7 +1,6 @@
 import re
 from typing import List, Optional
 
-import requests
 from bs4 import BeautifulSoup
 
 from downloader.base import BaseBookDownloader
@@ -29,7 +28,7 @@ class QuanbenDownloader(BaseBookDownloader):
     def _get_chapters(self) -> List[str]:
         """Extract chapter links from the book page and generate all URLs between first and last."""
         url = f"https://quanben.io/n/{self.book_id}/list.html"
-        soup = self._get_page(self.session, url)
+        soup = self._get_page(url)
 
         if not soup:
             return []
@@ -62,18 +61,17 @@ class QuanbenDownloader(BaseBookDownloader):
         return [f"{base_url}{i}.html" for i in range(first, last + 1)]
 
 
-    def _download_chapter_content(self, session: requests.Session, chapter_url: str) -> Optional[str]:
+    def _download_chapter_content(self, chapter_url: str) -> Optional[str]:
         """
         Downloads and extracts the content of a novel chapter from the specified URL.
 
         Args:
-            session: The requests session to use for HTTP requests
             chapter_url: The URL of the chapter to download
 
         Returns:
             The preprocessed text content of the chapter, or None if extraction failed
         """
-        soup = self._get_page(session, chapter_url)
+        soup = self._get_page(chapter_url)
         if not soup:
             return None
 

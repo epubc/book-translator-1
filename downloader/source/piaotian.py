@@ -1,7 +1,6 @@
 import re
 from typing import List, Optional
 
-import requests
 from bs4 import BeautifulSoup
 
 from downloader.base import BaseBookDownloader
@@ -13,20 +12,20 @@ from translator.text_processing import preprocess_downloaded_text
 class PiaotianDownloader(BaseBookDownloader):
 
     name = "piaotian"
-    request_delay = 0.5
+    request_delay = 0.75
     source_language = "Chinese"
     enable_book_info_translation = True
 
 
-    def _extract_book_id(self, url: str) -> str:
+    def _extract_book_id(self, url: str) -> Optional[str]:
         match = re.search(r"bookinfo/(\d+)/(\d+).html", url)
         if match:
             category_id, book_id = match.groups()
             return f"{category_id}/{book_id}"
 
     def _get_chapters(self) -> List[str]:
-        url = f"https://piaotia.com/html/{self.book_id}"
-        soup = self._get_page(self.session, url)
+        url = f"https://www.piaotia.com/html/{self.book_id}"
+        soup = self._get_page(url)
 
         if not soup:
             return []
@@ -44,8 +43,8 @@ class PiaotianDownloader(BaseBookDownloader):
 
         return [f"{url}/{chapter}" for chapter in chapters]
 
-    def _download_chapter_content(self, session: requests.Session, chapter_url: str) -> Optional[str]:
-        soup = self._get_page(session, chapter_url)
+    def _download_chapter_content(self, chapter_url: str) -> Optional[str]:
+        soup = self._get_page(chapter_url)
         if not soup:
             return None
 

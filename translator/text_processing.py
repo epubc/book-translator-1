@@ -10,17 +10,26 @@ REPLACEMENTS = {
     "chị rể": "anh rể"
 }
 
-def preprocess_downloaded_text(text: str) -> str:
-    """Normalizes line spacing in a chapter file."""
-    text = re.sub(r'<[^>]+>', '', text)
-    lines = text.splitlines()
-    normalized_lines = []
-    for line in lines:
-        if "https://" in line:
-            continue  # Skip empty lines
-        normalized_lines.append(line)
+IGNORE_PREFIX = [
+    "https://",
+    "Bạn",
+    "Vì"
+]
 
-    return "\n".join(normalized_lines)
+
+def preprocess_downloaded_text(text: str) -> str:
+    """Normalizes line spacing in a chapter file and removes lines with ignored prefixes."""
+    # Remove HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+
+    # Filter out lines containing any of the ignored prefixes
+    cleaned_lines = [
+        line for line in text.splitlines()
+        if not any(prefix in line for prefix in IGNORE_PREFIX)
+    ]
+
+    # Join the remaining lines
+    return "\n".join(cleaned_lines)
 
 
 def detect_untranslated_chinese(text: str) -> Tuple[bool, float]:

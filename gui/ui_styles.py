@@ -155,9 +155,9 @@ class WidgetStyles:
         },
         "success": {
             "main": "#4CAF50",
-            "dark": "#2E7D32",
-            "darker": "#1B5E20",
-            "darkest": "#0A280B",
+            "dark": "#388E3C",
+            "darker": "#2E7D32",
+            "darkest": "#1B5E20",
             "light": "#C8E6C9",
             "lighter": "#E8F5E9",
             "accent": "#A5D6A7",
@@ -199,7 +199,9 @@ class WidgetStyles:
             border-radius: 4px; 
             border: 1px solid {colors["dark"]}; 
             background-color: white;
+            color: #212121;
             selection-background-color: {colors["light"]};
+            selection-color: {colors["text_light"] if "text_light" in colors else colors["darkest"]};
         """
 
     @staticmethod
@@ -240,7 +242,9 @@ class WidgetStyles:
                 border: 1px solid {colors["dark"]}; 
                 border-radius: 4px; 
                 padding: 8px;
+                color: #212121;
                 selection-background-color: {colors["light"]};
+                selection-color: {colors["text_light"] if "text_light" in colors else colors["darkest"]};
             }}
             QTextEdit:focus {{
                 border: 2px solid {colors["main"]};
@@ -343,31 +347,35 @@ class WidgetStyles:
 
     @staticmethod
     def get_list_view_style(style_type="neutral"):
-        """Style for QListView, QListWidget.
+        """Style for QListView, QListWidget and QTreeView.
 
         Args:
             style_type: One of 'primary', 'danger', 'success', 'warning', 'neutral'
         """
         colors = WidgetStyles.COLORS.get(style_type, WidgetStyles.COLORS["neutral"])
         return f"""
-            QListView {{
+            QListView, QListWidget, QTreeView {{
                 background-color: {colors["lighter"]};
                 border: 1px solid {colors["dark"]};
                 border-radius: 4px;
-                padding: 2px;
+                padding: 4px;
+                color: #212121;
                 outline: none;
+                alternate-background-color: {colors["light"]};
             }}
-            QListView::item {{
-                border-radius: 2px;
-                padding: 6px;
+            QListView::item, QListWidget::item, QTreeView::item {{
+                padding: 5px;
                 margin: 2px;
+                border-radius: 2px;
             }}
-            QListView::item:hover {{
+            QListView::item:selected, QListWidget::item:selected, QTreeView::item:selected {{
                 background-color: {colors["light"]};
+                color: {colors["text_light"] if "text_light" in colors else colors["darkest"]};
+                border: none;
             }}
-            QListView::item:selected {{
-                background-color: {colors["main"]};
-                color: {colors["text"]};
+            QListView::item:hover, QListWidget::item:hover, QTreeView::item:hover {{
+                background-color: {colors["lighter"]};
+                border: 1px solid {colors["main"]};
             }}
         """
 
@@ -385,6 +393,7 @@ class WidgetStyles:
                 border-radius: 4px;
                 border: 1px solid {colors["dark"]};
                 background-color: white;
+                color: #212121;
                 width: 150px;
                 min-width: 150px;
             }}
@@ -399,13 +408,14 @@ class WidgetStyles:
                 subcontrol-position: right center;
                 width: 20px;
                 border-left: 1px solid {colors["dark"]};
+                background-color: {colors["lighter"]};
             }}
             QComboBox QAbstractItemView {{
                 background-color: white;
                 border: 1px solid {colors["dark"]};
                 border-radius: 0px;
-                selection-background-color: {colors["main"]};
-                selection-color: {colors["text"]};
+                selection-background-color: {colors["lighter"]};
+                selection-color: {colors["text_light"] if "text_light" in colors else colors["darkest"]};
             }}
         """
 

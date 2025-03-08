@@ -69,11 +69,7 @@ class Translator:
         try:
             progress_data = self.file_handler.load_progress()
             if progress_data.get("clean_cancellation", False):
-                logging.info("Detected previous clean cancellation, resetting batch timing data")
-                if "last_batch_time" in progress_data:
-                    progress_data.pop("last_batch_time")
-                if "last_batch_size" in progress_data:
-                    progress_data.pop("last_batch_size")
+                logging.info("Detected previous clean cancellation")
                 progress_data.pop("clean_cancellation", None)
                 self.file_handler.save_progress(progress_data)
         except Exception as e:

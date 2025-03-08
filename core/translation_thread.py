@@ -11,6 +11,7 @@ from translator.file_handler import FileHandler, FileSplitter
 from downloader.factory import DownloaderFactory
 from config.models import get_model_config
 from core.history_manager import HistoryManager
+from translator.text_processing import preprocess_downloaded_text
 
 
 @dataclass
@@ -78,15 +79,20 @@ class TranslationThread(QThread):
         file_path = self.params['file_path']
         book_title = self.params['book_title']
         book_author = self.params['author']
+        input_type = self.params.get('input_type', 'file')  # Default to 'file' for backward compatibility
 
         book_dir = output_dir / self._sanitize_filename(book_title)
         book_dir.mkdir(parents=True, exist_ok=True)
 
         configure_logging(book_dir)
 
-        self.stage_update.emit("Splitting file into chapters...")
-        splitter = FileSplitter(file_path, book_dir)
-        splitter.split_chapters()
+        if input_type == 'folder':
+            self.stage_update.emit("Processing folder files as chapters...")
+            self._process_folder_as_chapters(Path(file_path), book_dir)
+        else:
+            self.stage_update.emit("Splitting file into chapters...")
+            splitter = FileSplitter(file_path, book_dir)
+            splitter.split_chapters()
 
         book_info = BookInfo(title=book_title, author=book_author)
 
@@ -94,6 +100,38 @@ class TranslationThread(QThread):
         self._update_task_history(book_info, book_dir)
 
         return book_info, book_dir
+
+    def _process_folder_as_chapters(self, folder_path: Path, book_dir: Path) -> None:
+        """Process each text file in the folder as a separate chapter."""
+        # Create input_chapters directory if it doesn't exist
+        chapters_dir = book_dir / "input_chapters"
+        chapters_dir.mkdir(exist_ok=True)
+        
+        # Get all text files in the folder
+        txt_files = sorted(folder_path.glob("*.txt"))
+        
+        if not txt_files:
+            self.update_log.emit("No text files found in the selected folder.")
+            return
+            
+        self.update_log.emit(f"Found {len(txt_files)} text files to process as chapters.")
+        
+        # Copy each file to the input_chapters directory with chapter naming
+        for i, file_path in enumerate(txt_files, 1):
+            try:
+                # Read content from source file
+                content = file_path.read_text(encoding='utf-8')
+                content = preprocess_downloaded_text(content)
+                
+                # Save to destination with chapter naming
+                chapter_file = chapters_dir / f"chapter_{i:04d}.txt"
+                chapter_file.write_text(content, encoding='utf-8')
+                
+                self.update_log.emit(f"Processed {file_path.name} as chapter {i}.")
+            except Exception as e:
+                self.update_log.emit(f"Error processing {file_path.name}: {str(e)}")
+        
+        self.update_log.emit(f"Completed processing {len(txt_files)} files as chapters.")
 
     # Remove the _update_task_history call from the run() method
     def run(self) -> None:
@@ -224,15 +262,10 @@ class TranslationThread(QThread):
         if self.file_handler and self.translator:
             try:
                 progress_data = self.file_handler.load_progress()
-                # Reset batch timing data to ensure fresh start on next run
-                if "last_batch_time" in progress_data:
-                    progress_data.pop("last_batch_time")
-                if "last_batch_size" in progress_data:
-                    progress_data.pop("last_batch_size")
                 self.file_handler.save_progress(progress_data)
-                logging.info("Progress tracking data reset for clean restart.")
+                logging.info("Progress tracking data preserved for next run.")
             except Exception as e:
-                logging.error(f"Error cleaning up progress tracking: {e}")
+                logging.error(f"Error handling progress tracking: {e}")
 
         # Full cleanup at the end
         self._cleanup()

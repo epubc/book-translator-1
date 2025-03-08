@@ -9,15 +9,21 @@ from abc import ABC, abstractmethod
 import time
 import json
 
-import requests
+import httpx
+from httpx_retry import RetryTransport, RetryPolicy
 from bs4 import BeautifulSoup
-from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
 from fake_useragent import UserAgent
 
-from config import settings
 from translator.core import Translator, PromptStyle
 
+
+exponential_retry = (
+    RetryPolicy()
+    .with_max_retries(3)
+    .with_min_delay(0.5)
+    .with_multiplier(2)
+    .with_retry_on(lambda status_code: status_code >= 400)
+)
 
 @dataclass
 class BookInfo:
@@ -54,6 +60,7 @@ class BaseBookDownloader(ABC):
     request_delay = 0
     source_language = ""
     enable_book_info_translation = False
+    timeout = 1
 
     def __init__(self, output_dir: Path, url: str, start_chapter:Optional[int] = None, end_chapter:Optional[int] = None):
         self.url = url
@@ -67,7 +74,8 @@ class BaseBookDownloader(ABC):
         self.start_chapter = start_chapter
         self.end_chapter = end_chapter
 
-        self.session = self._init_requests_session()
+        # Create a persistent HTTP client with retry capabilities
+        self.client = self._init_http_client()
         self.translator = Translator()
 
         # Load state and initialize
@@ -82,22 +90,24 @@ class BaseBookDownloader(ABC):
         """Gracefully stop the download process."""
         with self._state_lock:
             self.stop_flag = True
+        self.client.close()
 
-    def _init_requests_session(self) -> requests.Session:
-        """Initialize a new session with current settings."""
-        session = requests.Session()
-        retry = Retry(
-            total=settings.DOWNLOAD_MAX_RETRIES,
-            backoff_factor=self.request_delay,
-            status_forcelist=[429, 500, 502, 503, 504],
+    def _init_http_client(self) -> httpx.Client:
+        """Initialize a new HTTP client with robust configuration."""
+        
+        # Create client with configured transport and timeout
+        client = httpx.Client(
+            transport=RetryTransport(policy=exponential_retry),
+            timeout=self.timeout,
+            follow_redirects=True,
+            headers={
+                "User-Agent": self._random_user_agent(),
+                "Accept-Language": "en-US,en;q=0.5",
+                "Accept": "text/html,application/xhtml+xml,application/xml",
+                "Connection": "keep-alive",
+            }
         )
-        adapter = HTTPAdapter(max_retries=retry)
-        session.mount("https://", adapter)
-        session.headers.update({
-            "User-Agent": self._random_user_agent(),
-            "Accept-Language": "en-US,en;q=0.5",
-        })
-        return session
+        return client
 
     def download_book(self) -> None:
         """Main download entry point with mode selection."""
@@ -161,6 +171,10 @@ class BaseBookDownloader(ABC):
             # Skip already completed chapters
             if download_status.get(str(chapter_num)) == "completed":
                 continue
+                
+            if self.stop_flag:
+                logging.info("Download stopped gracefully.")
+                break
 
             self._process_chapter(chapter_num, url)
             time.sleep(self.request_delay)
@@ -184,22 +198,22 @@ class BaseBookDownloader(ABC):
                 self._save_state()
 
     def _download_chapter_with_retry(self, chapter_url: str) -> Optional[str]:
-        """Retry logic with subclass-configurable delays."""
-        for attempt in range(1, settings.DOWNLOAD_MAX_RETRIES + 1):
-            if self.stop_flag:
-                return None
-            session = self._init_requests_session()
-            try:
-                content = self._download_chapter_content(session, chapter_url)
-                if content:
-                    return content
-            except Exception as e:
-                logging.warning(f"Attempt {attempt} failed: {str(e)}")
-                delay = self.request_delay ** attempt
-                time.sleep(delay)
-            finally:
-                session.close()
-        return None
+        """Retry logic with exponential backoff."""
+
+        try:
+            content = self._download_chapter_content(chapter_url)
+            if content:
+                return content
+            logging.error(f"Empty content received for {chapter_url}")
+        except httpx.RequestError as e:
+            logging.error(f"Request error: {str(e)}")
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code
+            logging.error(f"HTTP error {status_code} for {chapter_url}")
+        except Exception as e:
+            logging.warning(f"Unexpected error: {str(e)}")
+
+                
 
     def _initialize_book(self):
         """Fetch initial book info and chapter list."""
@@ -217,18 +231,21 @@ class BaseBookDownloader(ABC):
         )
         self._save_state()
 
-    def _get_page(self, session: requests.Session, url: str, timeout: int = 5) -> Optional[BeautifulSoup]:
+    def _get_page(self, url: str) -> Optional[BeautifulSoup]:
+        """Fetch a web page and return BeautifulSoup object."""
         try:
-            response = session.get(url, timeout=timeout)
+            response = self.client.get(url, follow_redirects=True)
             response.raise_for_status()
             return BeautifulSoup(response.content, "html.parser")
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            logging.error(f"Error fetching page: {url}, exception: {e}")
+            return None
         except Exception as e:
-            logging.error(f"Error fetching page: {url}, exception: {e}", exc_info=True)
+            logging.error(f"Unexpected error fetching page: {url}, exception: {e}", exc_info=True)
             return None
 
-
     def _get_book_info(self) -> BookInfo:
-        soup = self._get_page(self.session, self.url)
+        soup = self._get_page(self.url)
         if not soup:
             raise ValueError("Failed to fetch book page")
 
@@ -282,20 +299,23 @@ class BaseBookDownloader(ABC):
         self.state.update(kwargs)
 
     def _get_image_path(self, src: str) -> str:
+        """Download and save the cover image."""
+        if not src:
+            return ''
+            
         # Define the path to save the cover image
         image_path = self.book_dir / "cover.jpg"
 
         # Attempt to download and save the image
         try:
-            response = self.session.get(src, timeout=2)
-            if response.status_code == 200:
-                with open(image_path, 'wb') as f:
-                    f.write(response.content)
-                return image_path.as_posix()
-            else:
-                return ''
+            response = self.client.get(src)
+            response.raise_for_status()
+            
+            with open(image_path, 'wb') as f:
+                f.write(response.content)
+            return image_path.as_posix()
         except Exception as e:
-            print(f"Error downloading cover image: {e}")
+            logging.error(f"Error downloading cover image: {e}")
             return ''
 
     def _random_user_agent(self) -> str:
@@ -325,6 +345,6 @@ class BaseBookDownloader(ABC):
         pass
 
     @abstractmethod
-    def _download_chapter_content(self, session: requests.Session, chapter_url: str) -> Optional[str]:
+    def _download_chapter_content(self, chapter_url: str) -> Optional[str]:
         """Download and process chapter content (to be implemented by child classes)."""
         pass
