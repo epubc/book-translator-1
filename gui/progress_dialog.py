@@ -75,6 +75,19 @@ class ShardDetailsDialog(QDialog):
                 shard_num = int(match.group(1))
                 response_files[shard_num] = r
         
+        # Get failed translations info from progress.json
+        failed_translations = {}
+        try:
+            progress_data = self.file_handler.load_progress()
+            if "failed_translations" in progress_data:
+                for filename, failure_info in progress_data["failed_translations"].items():
+                    match = pattern.match(filename)
+                    if match:
+                        shard_num = int(match.group(1))
+                        failed_translations[shard_num] = failure_info
+        except Exception as e:
+            print(f"Error loading failed translations: {e}")
+        
         # Sort prompt files by shard number
         prompt_files.sort(key=lambda x: x[0])
         
@@ -87,12 +100,29 @@ class ShardDetailsDialog(QDialog):
             self.shards_table.setItem(row, 0, shard_item)
             
             # Status
-            status = "Translated" if shard_num in response_files else "Not Translated"
-            status_item = QTableWidgetItem(status)
-            if status == "Translated":
+            is_translated = shard_num in response_files
+            is_failed = shard_num in failed_translations
+            
+            if is_failed:
+                failure_type = failed_translations[shard_num].get("failure_type", "generic")
+                if failure_type == "contains_chinese":
+                    status_text = "Failed: Contains Chinese"
+                elif failure_type == "prohibited_content":
+                    status_text = "Failed: Prohibited Content"
+                elif failure_type == "copyrighted_content":
+                    status_text = "Failed: Copyrighted Content"
+                else:
+                    status_text = "Failed: Translation Error"
+                    
+                status_item = QTableWidgetItem(status_text)
+                status_item.setForeground(Qt.red)
+            elif is_translated:
+                status_item = QTableWidgetItem("Translated")
                 status_item.setForeground(Qt.green)
             else:
+                status_item = QTableWidgetItem("Not Translated")
                 status_item.setForeground(Qt.gray)
+                
             status_item.setTextAlignment(Qt.AlignCenter)
             self.shards_table.setItem(row, 1, status_item)
             
@@ -100,16 +130,35 @@ class ShardDetailsDialog(QDialog):
             original_btn = QPushButton("View Original")
             original_btn.setIcon(qta.icon("mdi.file-document-outline", color="#555"))
             original_btn.setStyleSheet(ButtonStyles.get_secondary_style())
-            original_btn.clicked.connect(lambda _, f=prompt_file.name: self.view_original_content(f))
+            original_btn.clicked.connect(lambda checked, f=prompt_file.name: self.view_original_content(f))
             self.shards_table.setCellWidget(row, 2, original_btn)
             
             # Translation button
             translation_btn = QPushButton("View Translation")
-            translation_btn.setIcon(qta.icon("mdi.translate", color="#555"))
-            translation_btn.setStyleSheet(ButtonStyles.get_secondary_style())
+            if is_failed:
+                translation_btn.setIcon(qta.icon("mdi.alert-circle", color="#D32F2F"))
+                translation_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #FFEBEE;
+                        color: #D32F2F;
+                        border: 1px solid #E57373;
+                        padding: 5px 10px;
+                        border-radius: 3px;
+                    }
+                    QPushButton:hover {
+                        background-color: #FFCDD2;
+                    }
+                    QPushButton:pressed {
+                        background-color: #EF9A9A;
+                    }
+                """)
+            else:
+                translation_btn.setIcon(qta.icon("mdi.translate", color="#555"))
+                translation_btn.setStyleSheet(ButtonStyles.get_secondary_style())
+                
             translation_file = prompt_file.name if shard_num in response_files else None
             if translation_file:
-                translation_btn.clicked.connect(lambda _, f=translation_file: self.view_translation_content(f))
+                translation_btn.clicked.connect(lambda checked, f=translation_file: self.view_translation_content(f))
             else:
                 translation_btn.setEnabled(False)
             self.shards_table.setCellWidget(row, 3, translation_btn)
@@ -155,6 +204,33 @@ class ShardDetailsDialog(QDialog):
         
         text_edit = QTextEdit()
         text_edit.setReadOnly(True)
+        
+        # Check if this is a failed translation marker file
+        is_failed_translation = False
+        if is_translation and "[TRANSLATION FAILED]" in content:
+            is_failed_translation = True
+            # Set special styling for failed translations
+            text_edit.setStyleSheet("""
+                QTextEdit {
+                    background-color: #FFEBEE;
+                    border: 1px solid #E57373;
+                    border-radius: 4px;
+                    color: #D32F2F;
+                }
+            """)
+            
+            # Add warning header
+            header_label = QLabel("<h3>⚠️ Failed Translation</h3>")
+            header_label.setStyleSheet("color: #D32F2F; background-color: #FFEBEE; padding: 5px; border-radius: 4px;")
+            header_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(header_label)
+            
+            # Add explanation text
+            explanation = QLabel("This translation failed. You can manually edit this file or delete it to allow the system to translate it again.")
+            explanation.setWordWrap(True)
+            explanation.setStyleSheet("color: #D32F2F; margin-bottom: 10px;")
+            layout.addWidget(explanation)
+        
         text_edit.setPlainText(content)
         layout.addWidget(text_edit)
         
@@ -177,6 +253,30 @@ class ShardDetailsDialog(QDialog):
             delete_btn.setStyleSheet(ButtonStyles.get_danger_style())
             delete_btn.clicked.connect(lambda: self.delete_translation_from_dialog(dialog, filename))
             button_layout.addWidget(delete_btn)
+            
+            # Add retry button for failed translations
+            if is_failed_translation:
+                retry_btn = QPushButton("Delete & Retry")
+                retry_btn.setIcon(qta.icon("mdi.refresh", color="#4CAF50"))
+                retry_btn.setIconSize(QSize(16, 16))
+                retry_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #4CAF50;
+                        color: white;
+                        border: none;
+                        padding: 5px 10px;
+                        border-radius: 3px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: #66BB6A;
+                    }
+                    QPushButton:pressed {
+                        background-color: #43A047;
+                    }
+                """)
+                retry_btn.clicked.connect(lambda: self.retry_failed_translation(dialog, filename))
+                button_layout.addWidget(retry_btn)
         
         close_btn = QPushButton("Close")
         close_btn.setStyleSheet(ButtonStyles.get_neutral_style())
@@ -186,6 +286,43 @@ class ShardDetailsDialog(QDialog):
         layout.addLayout(button_layout)
         
         dialog.exec_()
+    
+    def retry_failed_translation(self, parent_dialog, filename):
+        """Delete a failed translation and also remove it from the failed_translations list"""
+        reply = QMessageBox.question(
+            parent_dialog, 
+            "Confirm Retry",
+            f"Are you sure you want to retry the translation for {filename}?\n\nThis will delete the current failed translation marker.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            # First delete the translation file
+            success = self.file_handler.delete_file(filename, "translation_responses")
+            
+            if success:
+                # Now also remove from failed_translations in progress.json
+                try:
+                    progress_data = self.file_handler.load_progress()
+                    if "failed_translations" in progress_data and filename in progress_data["failed_translations"]:
+                        del progress_data["failed_translations"][filename]
+                        # Removed retry count reset since we're not tracking retries anymore
+                        self.file_handler.save_progress(progress_data)
+                        QMessageBox.information(parent_dialog, "Success", "Translation reset for retry successfully")
+                    else:
+                        QMessageBox.information(parent_dialog, "Success", "Translation file deleted, but was not in failed translations list")
+                except Exception as e:
+                    QMessageBox.warning(
+                        parent_dialog, 
+                        "Partial Success", 
+                        f"Translation file was deleted, but failed to update progress data: {str(e)}"
+                    )
+                
+                parent_dialog.accept()
+                self.populate_shards_table()  # Refresh the table
+            else:
+                QMessageBox.warning(parent_dialog, "Error", "Failed to delete translation")
     
     def restore_view_buttons(self, parent_dialog, text_edit, filename):
         """Restore the original view buttons (Edit, Delete, Close) to the dialog"""
@@ -284,10 +421,35 @@ class ShardDetailsDialog(QDialog):
         self.restore_view_buttons(parent_dialog, text_edit, filename)
     
     def save_edited_translation(self, parent_dialog, text_edit, filename):
-        edited_content = text_edit.toPlainText()
-        success = self.file_handler.save_content_to_file(edited_content, filename, "translation_responses")
-        if success:
-            QMessageBox.information(parent_dialog, "Success", "Translation updated successfully")
+        # Get the edited content
+        content = text_edit.toPlainText()
+        
+        # Check if the content starts with "[TRANSLATION FAILED]"
+        is_failed_translation = content.startswith("[TRANSLATION FAILED]")
+        
+        # If it no longer starts with the failure marker, consider it fixed
+        if content.strip() and not is_failed_translation:
+            success = self.file_handler.save_content_to_file(content, filename, "translation_responses")
+            if success:
+                try:
+                    # Remove from failed_translations in progress.json
+                    progress_data = self.file_handler.load_progress()
+                    if "failed_translations" in progress_data and filename in progress_data["failed_translations"]:
+                        del progress_data["failed_translations"][filename]
+                        # Removed retry count reset since we're not tracking retries anymore
+                        self.file_handler.save_progress(progress_data)
+                        QMessageBox.information(parent_dialog, "Success", "Translation updated and removed from failed list")
+                    else:
+                        QMessageBox.information(parent_dialog, "Success", "Translation updated successfully")
+                except Exception as e:
+                    QMessageBox.warning(
+                        parent_dialog, 
+                        "Partial Success", 
+                        f"Translation was updated, but failed to update progress data: {str(e)}"
+                    )
+            else:
+                QMessageBox.information(parent_dialog, "Success", "Translation updated successfully")
+                
             parent_dialog.accept()
             self.populate_shards_table()  # Refresh the table
         else:
@@ -340,14 +502,37 @@ class EnhancedProgressDialog(QDialog):
         summary_layout = QHBoxLayout(summary_frame)
         summary_layout.setSpacing(20)
 
+        # Calculate accurate counts based on status
         total_chapters = len(self.chapter_status)
-        completed_chapters = sum(1 for _, info in self.chapter_status.items() if info.get("progress", 0) == 100)
-        in_progress = sum(1 for _, info in self.chapter_status.items() if 0 < info.get("progress", 0) < 100)
-        avg_progress = sum(info.get("progress", 0) for _, info in self.chapter_status.items()) / max(1, total_chapters)
+        completed_chapters = sum(1 for _, info in self.chapter_status.items() 
+                               if info.get("status") == "Translated")
+        
+        in_progress_chapters = sum(1 for _, info in self.chapter_status.items() 
+                                 if info.get("status") == "Translating")
+        
+        failed_chapters = sum(1 for _, info in self.chapter_status.items() 
+                            if info.get("status") == "Failed")
+        
+        incomplete_chapters = sum(1 for _, info in self.chapter_status.items() 
+                                if info.get("status") == "Incomplete")
+        
+        not_started_chapters = sum(1 for _, info in self.chapter_status.items() 
+                                 if info.get("status") == "Not Started")
+        
+        # Use translated shards for progress calculation
+        total_shards = sum(info.get("total_shards", 0) for _, info in self.chapter_status.items())
+        translated_shards = sum(info.get("translated_shards", 0) for _, info in self.chapter_status.items())
+        
+        avg_progress = 0
+        if total_shards > 0:
+            avg_progress = (translated_shards / total_shards) * 100
 
+        # Create stats widgets
         total_label = self.create_stat_widget("Total Chapters", str(total_chapters), "mdi.book-open-variant")
         completed_label = self.create_stat_widget("Completed", str(completed_chapters), "mdi.check-circle", "green")
-        pending_label = self.create_stat_widget("In Progress", str(in_progress), "mdi.progress-clock", "blue")
+        pending_label = self.create_stat_widget("In Progress", str(in_progress_chapters), "mdi.progress-clock", "blue")
+        failed_label = self.create_stat_widget("Failed", str(failed_chapters), "mdi.alert-circle", "red")
+        incomplete_label = self.create_stat_widget("Incomplete", str(incomplete_chapters), "mdi.alert", "orange")
 
         progress_frame = QFrame()
         progress_layout = QVBoxLayout(progress_frame)
@@ -376,6 +561,8 @@ class EnhancedProgressDialog(QDialog):
         summary_layout.addWidget(total_label)
         summary_layout.addWidget(completed_label)
         summary_layout.addWidget(pending_label)
+        summary_layout.addWidget(failed_label)
+        summary_layout.addWidget(incomplete_label)
         summary_layout.addWidget(progress_frame)
         layout.addWidget(summary_frame)
 
@@ -407,7 +594,7 @@ class EnhancedProgressDialog(QDialog):
         scroll_layout.setSpacing(15)
 
         sorted_chapters = sorted(self.chapter_status.items(),
-                                 key=lambda x: int(x[0].split()[-1].isdigit() and x[0].split()[-1] or 0) if x[0].split() else 0)
+                                 key=lambda x: int(x[0].split()[-1].isdigit() and x[0].split()[-1] or 0))
 
         for chapter, info in sorted_chapters:
             chapter_frame = self.create_chapter_frame(chapter, info)
@@ -486,9 +673,16 @@ class EnhancedProgressDialog(QDialog):
 
         icon_label = QLabel()
         progress_value = int(info.get("progress", 0))
-        if progress_value == 100:
+        status = info.get("status", "Not Started")
+        
+        # Set icon based on status
+        if status == "Failed":
+            icon = qta.icon("mdi.alert-circle", color="red")
+        elif status == "Incomplete":
+            icon = qta.icon("mdi.alert", color="orange")
+        elif status == "Translated":
             icon = qta.icon("mdi.check-circle", color="green")
-        elif progress_value > 0:
+        elif status == "Translating":
             icon = qta.icon("mdi.progress-clock", color="blue")
         else:
             icon = qta.icon("mdi.book", color="gray")
@@ -497,10 +691,31 @@ class EnhancedProgressDialog(QDialog):
         chapter_label = QLabel(f"<b>{chapter}</b>")
         chapter_label.setStyleSheet("font-size: 14px;")
 
-        status_label = QLabel(info.get("status", "Not Started"))
-        if progress_value == 100:
+        status_text = status
+        if status == "Failed":
+            failure_type = info.get("failure_type", "generic")
+            if failure_type == "contains_chinese":
+                status_text = "Failed: Contains Chinese"
+            elif failure_type == "prohibited_content":
+                status_text = "Failed: Prohibited Content"
+            elif failure_type == "copyrighted_content":
+                status_text = "Failed: Copyrighted Content"
+            else:
+                status_text = "Failed: Translation Error"
+        elif status == "Incomplete":
+            translated_shards = info.get("translated_shards", 0)
+            failed_shards = info.get("failed_shards", 0)
+            total_shards = info.get("total_shards", 0)
+            status_text = f"Incomplete: {translated_shards} OK, {failed_shards} Failed"
+                
+        status_label = QLabel(status_text)
+        if status == "Failed":
+            status_label.setStyleSheet("color: red; font-weight: bold;")
+        elif status == "Incomplete":
+            status_label.setStyleSheet("color: orange; font-weight: bold;")
+        elif status == "Translated":
             status_label.setStyleSheet("color: green; font-weight: bold;")
-        elif progress_value > 0:
+        elif status == "Translating":
             status_label.setStyleSheet("color: blue; font-weight: bold;")
         else:
             status_label.setStyleSheet("color: gray;")
@@ -523,27 +738,65 @@ class EnhancedProgressDialog(QDialog):
         progress_bar = QProgressBar()
         progress_bar.setValue(progress_value)
         translated_shards = info.get("translated_shards", 0)
+        failed_shards = info.get("failed_shards", 0)
         total_shards = info.get("total_shards", 0)
 
+        # Set progress bar color based on status
+        if status == "Failed":
+            progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 1px solid #bbb;
+                    border-radius: 4px;
+                    text-align: center;
+                    height: 20px;
+                }
+                QProgressBar::chunk {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                             stop:0 #e53935, stop:1 #ff5252);
+                    border-radius: 4px;
+                }
+            """)
+        elif status == "Incomplete":
+            progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 1px solid #bbb;
+                    border-radius: 4px;
+                    text-align: center;
+                    height: 20px;
+                }
+                QProgressBar::chunk {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                             stop:0 #FB8C00, stop:1 #FFA726);
+                    border-radius: 4px;
+                }
+            """)
+        else:
+            progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 1px solid #bbb;
+                    border-radius: 4px;
+                    text-align: center;
+                    height: 20px;
+                }
+                QProgressBar::chunk {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                             stop:0 #76b852, stop:1 #8DC26F);
+                    border-radius: 4px;
+                }
+            """)
+
         if total_shards > 0:
-            progress_bar.setFormat(f"{progress_value}%")
-            progress_bar.setToolTip(f"{translated_shards}/{total_shards} shards")
+            # Include info about failed shards in tooltip if any
+            if failed_shards > 0:
+                progress_bar.setFormat(f"{progress_value}% ({translated_shards}/{total_shards})")
+                progress_bar.setToolTip(f"Translated: {translated_shards}, Failed: {failed_shards}, Total: {total_shards}")
+            else:
+                progress_bar.setFormat(f"{progress_value}%")
+                progress_bar.setToolTip(f"{translated_shards}/{total_shards} shards")
         else:
             progress_bar.setFormat(f"{progress_value}%")
 
-        progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #bbb;
-                border-radius: 4px;
-                text-align: center;
-                height: 20px;
-            }
-            QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                         stop:0 #76b852, stop:1 #8DC26F);
-                border-radius: 4px;
-            }
-        """)
+        progress_layout.addWidget(progress_bar)
 
         if "estimated_time" in info:
             time_icon = QLabel()
@@ -554,10 +807,34 @@ class EnhancedProgressDialog(QDialog):
             time_layout.addWidget(time_label)
             time_layout.addStretch()
 
-            progress_layout.addWidget(progress_bar, 4)
             progress_layout.addLayout(time_layout, 1)
-        else:
-            progress_layout.addWidget(progress_bar)
+
+        # Add shard count information
+        if failed_shards > 0:
+            shard_info_layout = QHBoxLayout()
+            shard_info_icon = QLabel()
+            shard_info_icon.setPixmap(qta.icon("mdi.puzzle-outline", color="#757575").pixmap(16, 16))
+            shard_info_label = QLabel(f"Shards: {translated_shards} successful, {failed_shards} failed, {total_shards - translated_shards - failed_shards} pending")
+            shard_info_label.setStyleSheet("color: #757575; font-style: italic;")
+            shard_info_layout.addWidget(shard_info_icon)
+            shard_info_layout.addWidget(shard_info_label)
+            shard_info_layout.addStretch()
+            chapter_layout_inner.addLayout(shard_info_layout)
+
+        # Show error message for failed chapters
+        if status == "Failed" and "error" in info:
+            error_layout = QHBoxLayout()
+            error_icon = QLabel()
+            error_icon.setPixmap(qta.icon("mdi.alert", color="red").pixmap(16, 16))
+            error_text = info["error"]
+            if len(error_text) > 100:
+                error_text = error_text[:97] + "..."
+            error_label = QLabel(error_text)
+            error_label.setStyleSheet("color: #d32f2f; font-style: italic;")
+            error_layout.addWidget(error_icon)
+            error_layout.addWidget(error_label)
+            error_layout.addStretch()
+            chapter_layout_inner.addLayout(error_layout)
 
         chapter_layout_inner.addLayout(progress_layout)
 

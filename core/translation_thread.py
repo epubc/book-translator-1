@@ -227,6 +227,30 @@ class TranslationThread(QThread):
             end_chapter=end_chapter
         )
 
+        # Extract Chinese words
+        self.stage_update.emit("Extracting and translating Chinese words...")
+        self.update_progress.emit(90)
+        if not self._is_running:
+            raise InterruptedError("Translation stopped by user")
+
+        has_chinese, chinese_words_path = self.file_handler.extract_chinese_words_to_file()
+        if chinese_words_path:
+            self.update_log.emit(f"Chinese words extracted, translated, and saved to: {chinese_words_path}")
+        else:
+            self.update_log.emit("No Chinese words were found or extraction failed.")
+
+        # Replace Chinese words with Vietnamese translations in chapters
+        self.stage_update.emit("Replacing Chinese words in chapters...")
+        self.update_progress.emit(92)
+        if not self._is_running:
+            raise InterruptedError("Translation stopped by user")
+            
+        processed_count = self.file_handler.replace_chinese_words_in_chapters(has_chinese)
+        if processed_count > 0:
+            self.update_log.emit(f"Replaced Chinese words in {processed_count} chapter files")
+        else:
+            self.update_log.emit("No chapters were processed for Chinese word replacement")
+
         # Generate EPUB
         self.stage_update.emit("Generating EPUB...")
         self.update_progress.emit(95)

@@ -4,12 +4,15 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import re
 
+from config.prompts import PromptStyle
 from epub.generator import EPUBGenerator
 from logger import logging_utils
 from translator import text_processing
 from config import settings
+
 from translator.helper import is_in_chapter_range, sanitize_path_name
-from translator.text_processing import get_unique_names_from_text, add_underscore
+from translator.text_processing import get_unique_names_from_text, add_underscore, extract_chinese_words_from_text, \
+    replace_chinese_words_with_vietnamese
 
 
 class FileHandler:
@@ -119,7 +122,11 @@ class FileHandler:
 
 
     def is_translation_complete(self, start_chapter: Optional[int] = None, end_chapter: Optional[int] = None) -> bool:
-        """Check if all expected translations in specified chapter range are completed."""
+        """Check if all expected translations in specified chapter range are completed.
+        A translation is considered complete if:
+        1. It has a corresponding file in translation_responses directory OR
+        2. It is marked as a failed translation AND has been retried
+        """
         prompts_dir = self.get_path("prompt_files")
         responses_dir = self.get_path("translation_responses")
 
@@ -139,7 +146,20 @@ class FileHandler:
             if is_in_chapter_range(r.name, start_chapter, end_chapter)
         }
 
-        untranslated_prompts = prompt_files - response_files
+        # Load progress data to check for failed translations
+        progress_data = self.load_progress()
+        failed_translations = progress_data.get("failed_translations", {})
+        
+
+        untranslated_prompts = set()
+        for prompt_file in prompt_files:
+            if prompt_file not in response_files:
+                untranslated_prompts.add(prompt_file)
+            else:
+                failure_info = failed_translations.get(f"{prompt_file}.txt")
+                if failure_info and not failure_info.get("retried", False):
+                    untranslated_prompts.add(prompt_file)
+        
         if untranslated_prompts:
             logging.info(f"Remaining translations in chapters {start_str}-{end_str}: {len(untranslated_prompts)}")
             return False
@@ -255,6 +275,8 @@ class FileHandler:
                         deleted_count += 1
                         logging.warning(f"Deleted unreadable translation: {file_path.name}")
                     continue
+                if '[TRANSLATION FAILED]' in content:
+                    continue
                 
                 original_content = self.load_content_from_file(file_path.name, "prompt_files")
                 if original_content is None:  # No corresponding prompt file
@@ -330,7 +352,7 @@ class FileHandler:
             if name_counts:
                 for name, count in name_counts.items():
                     all_name_counts[name] = all_name_counts.get(name, 0) + count
-        return {key: value for key, value in all_name_counts.items() if value>=10}
+        return {key: value for key, value in all_name_counts.items() if value>=20}
 
 
     def extract_and_count_names(self) -> None:
@@ -359,21 +381,147 @@ class FileHandler:
             data = json.loads(json_path.read_text(encoding='utf-8'))
             if not isinstance(data, dict):
                 logging.error(f"JSON file does not contain a dictionary: {json_path}")
-                return
+                return None
             output_string = ""
             for name, count in data.items():
                 output_string += f"{name} - {count}\n"
             return output_string
         except FileNotFoundError:
             logging.debug(f"File not found: {json_path}")
-            return
+            return None
         except json.JSONDecodeError:
             logging.error(f"Invalid JSON format in file: {json_path}")
-            return
+            return None
         except Exception as e:
             logging_utils.log_exception(e, f"Error loading or converting names from JSON: {json_path}")
-            return
+            return None
 
+    def extract_chinese_words_to_file(self) -> [bool, Optional[Path]]:
+        """
+        Extract all Chinese words from all translation response files and save them to a JSON file.
+            
+        Returns:
+            Path to the created Chinese words file, or None on failure
+        """
+        logging.info("Extracting Chinese words from translation responses...")
+
+
+        translation_dir = self.get_path("translation_responses")
+        translation_files = list(translation_dir.glob("*.txt"))
+
+        if not translation_files:
+            logging.warning("No translation files found for Chinese word extraction.")
+            return None
+            
+        chinese_words_set = set()
+        for file_path in translation_files:
+            try:
+                content = self.load_content_from_file(
+                    file_path.name,
+                    "translation_responses" if file_path in translation_files else "translated_chapters",
+                )
+                if content:
+                    chinese_words = extract_chinese_words_from_text(content)
+                    for word in chinese_words:
+                        chinese_words_set.add(word)
+            except Exception as e:
+                logging.error(f"Error extracting Chinese words from {file_path.name}: {str(e)}")
+
+        if not chinese_words_set:
+            logging.info("No Chinese words found in translation files.")
+            return False, None
+        
+        output_filepath = self.book_dir / "chinese_words.json"
+
+        translated_text = ""
+        try:
+            from translator.core import Translator
+            translator = Translator()
+            raw_text = '\n'.join(chinese_words_set)
+            translated_text = translator.translate_text(
+                text=raw_text,
+                prompt_style=PromptStyle.Words,
+            )
+            translated_text = translated_text.replace("```", "").replace("json", "").strip()
+
+            json_result = json.loads(translated_text)
+
+            with open(output_filepath, "w", encoding="utf-8") as outfile:
+                json.dump(json_result, outfile, ensure_ascii=False, indent=2)
+
+            logging.info(f"Chinese words extracted and translated to: {output_filepath}")
+            return True, output_filepath
+
+        except json.JSONDecodeError:
+            logging.error(f"Failed to parse JSON from translation response: {translated_text}")
+
+        except Exception as e:
+            logging.error(f"Error translating batch of Chinese words: {str(e)}")
+            
+        return False, None
+
+    def replace_chinese_words_in_chapters(self, has_chinese: bool) -> int:
+        """
+        Replace Chinese words in all translated chapter files with their Vietnamese translations.
+        Uses the previously created chinese_words.json mapping.
+        
+        Returns:
+            Number of files processed
+        """
+
+        if not has_chinese:
+            logging.warning("No Chinese words in translation. Skipping replacement.")
+            return 0
+
+        chinese_words_file = self.book_dir / "chinese_words.json"
+        if not chinese_words_file.exists():
+            logging.warning("Chinese words mapping file not found. Skipping replacement.")
+            return 0
+            
+        try:
+            # Load the Chinese-Vietnamese mapping
+            with open(chinese_words_file, "r", encoding="utf-8") as f:
+                chinese_vietnamese_map = json.load(f)
+                
+            if not chinese_vietnamese_map:
+                logging.warning("Chinese words mapping is empty. Skipping replacement.")
+                return 0
+                
+            logging.info(f"Loaded {len(chinese_vietnamese_map)} Chinese-Vietnamese word mappings")
+            
+            # Process all chapter files
+            translated_responses_dir = self.get_path("translation_responses")
+            translated_files = list(translated_responses_dir.glob("*.txt"))
+            
+            if not translated_files:
+                logging.warning("No translated response files found to process.")
+                return 0
+                
+            files_processed = 0
+            for file_path in translated_files:
+                try:
+                    # Read the file content
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        
+                    # Replace Chinese words with Vietnamese translations
+                    updated_content = replace_chinese_words_with_vietnamese(content, chinese_vietnamese_map)
+                    
+                    # Write back the updated content
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(updated_content)
+                        
+                    files_processed += 1
+                    
+                except Exception as e:
+                    logging.error(f"Error processing file {file_path.name}: {str(e)}")
+                    
+            logging.info(f"Replaced Chinese words in {files_processed} translated response files")
+            return files_processed
+            
+        except Exception as e:
+            logging.error(f"Error during Chinese word replacement: {str(e)}")
+            return 0
 
     def generate_epub(self, book_title: str, book_author: str, cover_image: str) -> Optional[Path]:
         """Generate EPUB from combined translations, return path to EPUB or None on failure."""
@@ -436,8 +584,10 @@ class FileHandler:
                     chapter_status[chapter_name] = {
                         "total_shards": 0,
                         "translated_shards": 0,
-                        "status": "Translating",
-                        "progress": 0.0
+                        "status": "Not Started",
+                        "progress": 0.0,
+                        "failed": False,
+                        "failed_shards": 0
                     }
                 chapter_status[chapter_name]["total_shards"] += 1
 
@@ -448,14 +598,59 @@ class FileHandler:
                 chapter_name = match.group(1)
                 if chapter_name in chapter_status:
                     chapter_status[chapter_name]["translated_shards"] += 1
+                    if chapter_status[chapter_name]["status"] == "Not Started":
+                        chapter_status[chapter_name]["status"] = "Translating"
+
+        # Add failed translations information
+        progress_data = self.load_progress()
+        if "failed_translations" in progress_data:
+            failed_by_chapter = {}
+            # First, count failed translations by chapter
+            for filename, failure_info in progress_data["failed_translations"].items():
+                match = re.match(r"(.*)_\d+\.txt", filename)
+                if match:
+                    chapter_name = match.group(1)
+                    if chapter_name not in failed_by_chapter:
+                        failed_by_chapter[chapter_name] = []
+                    failed_by_chapter[chapter_name].append((filename, failure_info))
+            
+            # Apply failure status while tracking individual shard failures
+            for chapter_name, failures in failed_by_chapter.items():
+                if chapter_name in chapter_status:
+                    # Count failed shards
+                    chapter_status[chapter_name]["failed_shards"] = len(failures)
+                    
+                    # Store the first failure's details (for display in UI)
+                    first_failure = failures[0][1]  # Take details from the first failed shard
+                    chapter_status[chapter_name]["failure_type"] = first_failure.get("failure_type", "generic")
+                    chapter_status[chapter_name]["error"] = first_failure.get("error", "Unknown error")
+                    
+                    # Determine if the chapter should be marked as completely failed
+                    # A chapter is considered failed if it has any failed shards
+                    # But we only show Failed status if all shards are either translated or failed
+                    total_processed = chapter_status[chapter_name]["translated_shards"] + chapter_status[chapter_name]["failed_shards"]
+                    
+                    chapter_status[chapter_name]["failed"] = True
+                    
+                    if total_processed == chapter_status[chapter_name]["total_shards"]:
+                        # All shards are either translated or failed, so show failed status
+                        chapter_status[chapter_name]["status"] = "Failed"
+                    else:
+                        # Some shards still waiting to be processed, show as Incomplete
+                        chapter_status[chapter_name]["status"] = "Incomplete"
 
         # Calculate progress and set status for each chapter
         for chapter_name, status in chapter_status.items():
             if status["total_shards"] > 0:
-                status["progress"] = round((status["translated_shards"] / status["total_shards"]) * 100, 1)
+                total_processed = status["translated_shards"]  # Count only successful translations
+                status["progress"] = round((total_processed / status["total_shards"]) * 100, 1)
 
-                if status["translated_shards"] == status["total_shards"]:
-                    status["status"] = "Translated"
+                # Set final status if not already set
+                if not status.get("failed", False):
+                    if status["translated_shards"] == status["total_shards"]:
+                        status["status"] = "Translated"
+                    elif status["translated_shards"] > 0:
+                        status["status"] = "Translating"
 
         # Sort chapters for better readability in logs
         return dict(sorted(chapter_status.items()))

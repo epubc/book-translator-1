@@ -25,8 +25,6 @@ def main() -> None:
         downloader = DownloaderFactory.create_downloader( url=args.book_url, output_dir= Path(args.output_directory) )
         book_info = downloader.book_info
         book_dir = downloader.book_dir
-        source_infos = DownloaderFactory.get_source_info()
-        print(source_infos)
 
         start_chapter, end_chapter = args.start_chapter, args.end_chapter
         model_config = get_model_config(args.model_name)
@@ -49,7 +47,21 @@ def main() -> None:
         translator.process_book_translation(prompt_style=args.prompt_style, start_chapter=start_chapter,
                                             end_chapter=end_chapter)
 
-        logging.info("--- Stage 4: Generating EPUB ---")
+        logging.info("--- Stage 4: Extracting Chinese Words ---")
+        chinese_words_path = file_handler.extract_chinese_words_to_file(book_info.title)
+        if chinese_words_path:
+            logging.info(f"Chinese words extracted to: {chinese_words_path}")
+        else:
+            logging.warning("No Chinese words were extracted.")
+
+        logging.info("--- Stage 5: Replacing Chinese Words in Chapters ---")
+        processed_count = file_handler.replace_chinese_words_in_chapters()
+        if processed_count > 0:
+            logging.info(f"Replaced Chinese words in {processed_count} chapter files")
+        else:
+            logging.warning("No chapters were processed for Chinese word replacement")
+
+        logging.info("--- Stage 6: Generating EPUB ---")
         epub_path = file_handler.generate_epub(book_info.title, book_info.author, cover_image='')
         if epub_path:
             logging.info(f"EPUB file successfully created: {epub_path}")

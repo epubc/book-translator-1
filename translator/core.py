@@ -3,27 +3,19 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from enum import Enum
 from threading import Lock
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from google.generativeai import GenerativeModel
 import google.generativeai as genai
 
 from config import settings, prompts
 from config.models import ModelConfig, DEFAULT_MODEL_CONFIG
-from config.prompts import NAME_PROMPT
+from config.prompts import PromptStyle
 from config.settings import TRANSLATION_INTERVAL_SECONDS
 from translator.file_handler import FileHandler
 from translator.helper import is_in_chapter_range
-from translator.text_processing import normalize_translation, validate_translation_quality, \
-    preprocess_raw_text
-
-
-class PromptStyle(Enum):
-    Modern = 1
-    ChinaFantasy = 2
-    BookInfo = 3
+from translator.text_processing import normalize_translation, validate_translation_quality
 
 
 @dataclass
@@ -35,11 +27,12 @@ class TranslationTask:
 
 class Translator:
 
-    def __init__(self, model_config: ModelConfig = DEFAULT_MODEL_CONFIG, file_handler: Optional[FileHandler] = None, fallback_model_config: Optional[ModelConfig] = None):
+    def __init__(self, model_config: ModelConfig = DEFAULT_MODEL_CONFIG, file_handler: Optional[FileHandler] = None, fallback_model_config: Optional[ModelConfig] = DEFAULT_MODEL_CONFIG):
         self._log_handlers = []
         self.model = self._create_model(model_config)
         self.fallback_model = self._create_model(fallback_model_config) if fallback_model_config else None
-        self.batch_size = model_config.BATCH_SIZE
+        self.model_batch_size = model_config.BATCH_SIZE
+        self.fallback_model_batch_size = fallback_model_config.BATCH_SIZE if fallback_model_config else None
         self.file_handler = file_handler
         self._stop_requested = False  # Cancellation flag
 
@@ -76,7 +69,10 @@ class Translator:
             logging.warning(f"Failed to check cancellation status: {e}")
         
         while not self._stop_requested and not self.file_handler.is_translation_complete(start_chapter, end_chapter):
-            futures = self._process_translation_batch(prompt_style, start_chapter, end_chapter)
+            futures = self._process_translation_batch(prompt_style, start_chapter, end_chapter, self.model_batch_size)
+            concurrent.futures.wait(futures)
+
+            futures = self._process_translation_batch(prompt_style, start_chapter, end_chapter, self.fallback_model_batch_size, is_retry=True)
             concurrent.futures.wait(futures)
 
             if self._stop_requested:
@@ -96,28 +92,35 @@ class Translator:
         self,
         prompt_style: PromptStyle = PromptStyle.Modern,
         start_chapter: Optional[int] = None,
-        end_chapter: Optional[int] = None
+        end_chapter: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        is_retry: bool = False,
     ) -> List[concurrent.futures.Future]:
-        executor = ThreadPoolExecutor(max_workers=self.batch_size)
+        executor = ThreadPoolExecutor(max_workers=batch_size)
         futures = []
-        tasks = self._prepare_tasks(start_chapter, end_chapter)
+        
+        # Get tasks based on is_retry flag
+        if is_retry:
+            tasks = self._prepare_retry_tasks(start_chapter, end_chapter)
+        else:
+            tasks = self._prepare_tasks(start_chapter, end_chapter)
+        
         if not tasks:
             logging.info("No tasks to process")
             return futures
 
         progress_data = self.file_handler.load_progress()
-        progress_data.setdefault("retries", {})
         retry_lock = Lock()
 
         batch_index = 0
         while tasks and not self._stop_requested:
-            self._enforce_rate_limit(progress_data, len(tasks))
+            self._enforce_rate_limit(progress_data, len(tasks), batch_size)
             batch_index += 1
-            batch = tasks[:self.batch_size]
-            if self.has_processed_tasks(batch):
+            batch = tasks[:batch_size]
+            if not is_retry and self.has_processed_tasks(batch):
                 tasks = self._prepare_tasks(start_chapter, end_chapter)
-                batch = tasks[:self.batch_size]
-            tasks = tasks[self.batch_size:]
+                batch = tasks[:batch_size]
+            tasks = tasks[batch_size:]
 
             logging.info("Processing batch %d with %d tasks", batch_index, len(batch))
             logging.info(f"Tasks in this batch: {[task.filename for task in batch]}")
@@ -128,7 +131,8 @@ class Translator:
                     task,
                     progress_data,
                     retry_lock,
-                    prompt_style
+                    prompt_style,
+                    is_retry,
                 )
                 for task in batch
             ]
@@ -144,13 +148,13 @@ class Translator:
         executor.shutdown(wait=False)
         return futures
 
-    def _enforce_rate_limit(self, progress_data: Dict, pending_tasks: int) -> None:
+    def _enforce_rate_limit(self, progress_data: Dict, pending_tasks: int, batch_size: int) -> None:
         """Enforce rate limiting between batches."""
         last_batch_time = progress_data.get("last_batch_time", 0)
         elapsed = time.time() - last_batch_time
         remaining = TRANSLATION_INTERVAL_SECONDS - elapsed
 
-        if remaining > 0 and (progress_data.get("last_batch_size", 0) + pending_tasks) > self.batch_size:
+        if remaining > 0 and (progress_data.get("last_batch_size", 0) + pending_tasks) > batch_size:
             logging.info("Rate limiting - sleeping %.2f seconds", remaining)
             time.sleep(remaining)
 
@@ -193,61 +197,38 @@ class Translator:
             task: TranslationTask,
             progress_data: Dict,
             retry_lock: Lock,
-            prompt_style: PromptStyle
+            prompt_style: PromptStyle,
+            is_retry: bool = False,
     ) -> None:
         # Check cancellation before processing each task.
         if self._stop_requested:
             logging.info("Translation task %s cancelled.", task.filename)
             return
+        model = self.model
+        if is_retry:
+            model = self.fallback_model
+            # Mark that this is being retried in the progress data
+            with retry_lock:
+                if "failed_translations" in progress_data and task.filename in progress_data["failed_translations"]:
+                    progress_data["failed_translations"][task.filename]["retried"] = True
+                    self.file_handler.save_progress(progress_data)
+                    
         try:
-            retry_count = self._get_retry_count(task.filename, progress_data, retry_lock)
-            raw_text = preprocess_raw_text(task.content, retry_count)
-            model = self._select_model(retry_count)
-            additional_info = self._get_additional_info()
             translated_text = self._translate(
                 model=model,
-                raw_text=raw_text,
-                additional_info=additional_info,
-                prompt_style=prompt_style
+                raw_text=task.content,
+                prompt_style=prompt_style,
             )
             if not translated_text:
                 logging.error("Error processing %s", task.filename)
                 return
-            validate_translation_quality(translated_text, retry_count)
+            validate_translation_quality(translated_text)
             self._handle_translation_success(task, translated_text, progress_data, retry_lock)
         except Exception as e:
             logging.error("Error processing %s: %s", task.filename, str(e))
-            self._increase_retry_count(task.filename, progress_data, retry_lock)
-
-
-    def _get_retry_count(self, filename: str, progress_data: Dict, lock: Lock) -> int:
-        """Get current retry count with thread safety."""
-        with lock:
-            # Initialize retry count if not present
-            if filename not in progress_data["retries"]:
-                progress_data["retries"][filename] = 0
-            return progress_data["retries"].get(filename, 0)
-
-    def _increase_retry_count(self, filename: str, progress_data: Dict, lock: Lock):
-        """Increase retry count with thread safety."""
-        with lock:
-            if filename not in progress_data["retries"]:
-                progress_data["retries"][filename] = 0
-            progress_data["retries"][filename] += 1
-            self.file_handler.save_progress(progress_data)
-
-
-    def _select_model(self, retry_count: int) -> GenerativeModel:
-        """Select appropriate model based on retry count and availability."""
-        return self.fallback_model if retry_count > 0 and self.fallback_model else self.model
-
-
-    def _get_additional_info(self) -> str:
-        """Get system instruction for translation context."""
-        character_names = self.file_handler.load_and_convert_names_to_string()
-        if not character_names:
-            return ""
-        return f"{NAME_PROMPT} {character_names}"
+            if "429" in str(e):
+                return
+            self._mark_translation_failed(task.filename, str(e).lower(), progress_data, retry_lock)
 
 
     def _handle_translation_success(self, task: TranslationTask, translated_text: str,
@@ -256,10 +237,12 @@ class Translator:
         """Handle successful translation with cleanup."""
         logging.info("Successfully translated: %s", task.filename)
         self.file_handler.save_content_to_file(translated_text, task.filename, "translation_responses")
-
+        
         with lock:
-            progress_data["retries"].pop(task.filename, None)
-            self.file_handler.save_progress(progress_data)
+            if "failed_translations" in progress_data and task.filename in progress_data["failed_translations"]:
+                logging.info(f"Removing {task.filename} from failed translations after successful retry")
+                del progress_data["failed_translations"][task.filename]
+                self.file_handler.save_progress(progress_data)
 
 
     def _translate(
@@ -270,18 +253,15 @@ class Translator:
             prompt_style: PromptStyle = PromptStyle.Modern
     ) -> Optional[str]:
         """Execute translation with quality checks."""
-        try:
-            prompt = self._build_translation_prompt(raw_text, additional_info, prompt_style)
-            response = self._get_model_response(model, prompt)
-            translated_text = response.text.strip()
-            if not translated_text:
-                raise ValueError("Empty model response")
+        prompt = self._build_translation_prompt(raw_text, additional_info, prompt_style)
+        response = self._get_model_response(model, prompt)
+        translated_text = response.text.strip()
+        if not translated_text:
+            raise ValueError("Empty model response")
 
-            return normalize_translation(translated_text)
+        return normalize_translation(translated_text)
 
-        except Exception as e:
-            logging.warning("Translation error: %s", str(e))
-            return None
+
 
 
     def _build_translation_prompt(
@@ -295,18 +275,19 @@ class Translator:
             PromptStyle.Modern: prompts.MODERN_PROMPT,
             PromptStyle.ChinaFantasy: prompts.CHINA_FANTASY_PROMPT,
             PromptStyle.BookInfo: prompts.BOOK_INFO_PROMPT,
+            PromptStyle.Words: prompts.WORDS_PROMPT,
         }[PromptStyle(prompt_style)]
-
+        text = f"[**NỘI DUNG ĐOẠN VĂN**]\n{text.strip()}\n[**NỘI DUNG ĐOẠN VĂN**]"
         if additional_info:
-            base_prompt = f"{additional_info}\n{base_prompt}"
-        return f"{base_prompt}\n{text}".strip()
+            return f"{base_prompt}\n{text}\n{base_prompt}\n\n{additional_info}".strip()
+        return f"{base_prompt}\n{text}\n{base_prompt}".strip()
 
 
     def _get_model_response(self, model: GenerativeModel, prompt: str) -> any:
         """Get model response with timeout handling."""
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(model.generate_content, prompt)
-            return future.result(timeout=120)
+            return future.result(timeout=180)
 
     def translate_text(self, text: Optional[str], prompt_style: PromptStyle) -> str:
         if not text:
@@ -327,3 +308,70 @@ class Translator:
                 self.file_handler.save_progress(progress_data)
             except Exception as e:
                 logging.error(f"Error saving cancellation state: {e}")
+
+    def _mark_translation_failed(self, filename: str, error_message: str, progress_data: Dict, lock: Lock) -> None:
+        """Mark a translation as failed and categorize the failure."""
+        with lock:
+            # Initialize failed_translations dict if it doesn't exist
+            if "failed_translations" not in progress_data:
+                progress_data["failed_translations"] = {}
+            
+            # Categorize the failure type
+            failure_type = "generic"
+            if 'chinese' in error_message:
+                failure_type = "contains_chinese"
+            elif 'prohibited' in error_message:
+                failure_type = "prohibited_content"
+            elif 'copyrighted' in error_message:
+                failure_type = "copyrighted_content"
+            
+            # Store the failure information
+            progress_data["failed_translations"][filename] = {
+                "error": error_message,
+                "failure_type": failure_type,
+                "timestamp": time.time(),
+                "retried": False  # Initialize with retried=False
+            }
+            
+            # Save a marker file in translation_responses directory
+            # This prevents the system from continuously retrying this translation
+            failure_message = f"[TRANSLATION FAILED]\n\nFailure Type: {failure_type}\n\nError: {error_message}\n\nTimestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\nThis file indicates a failed translation. Please check the error details above or manually translate this content."
+            try:
+                self.file_handler.save_content_to_file(failure_message, filename, "translation_responses")
+                logging.info(f"Created failure marker file for {filename}")
+            except Exception as e:
+                logging.error(f"Failed to create failure marker file for {filename}: {e}")
+            
+            logging.warning(f"Translation for {filename} marked as failed: {failure_type}")
+            self.file_handler.save_progress(progress_data)
+
+    def _prepare_retry_tasks(
+        self,
+        start_chapter: Optional[int] = None,
+        end_chapter: Optional[int] = None
+    ) -> List[TranslationTask]:
+        """Prepare retry tasks from failed translations that have not been retried."""
+        # Load failed translations from progress data
+        progress_data = self.file_handler.load_progress()
+        failed_translations = progress_data.get("failed_translations", {})
+        
+        if not failed_translations:
+            logging.info("No failed translations to retry")
+            return []
+        
+        # Create tasks from failed translations that have not been retried
+        tasks = []
+        for filename, failure_info in failed_translations.items():
+            # Skip if already retried
+            if failure_info.get("retried", False):
+                continue
+                
+            # Check if the file is in the specified chapter range
+            if is_in_chapter_range(filename, start_chapter, end_chapter):
+                # Get content from the prompt file
+                content = self.file_handler.load_prompt_file_content(filename)
+                if content:
+                    tasks.append(TranslationTask(filename, content))
+        
+        logging.info(f"Found {len(tasks)} failed translations to retry")
+        return tasks

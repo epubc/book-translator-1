@@ -144,18 +144,11 @@ class SettingsDialog(QDialog):
         self.threads_spin.setStyleSheet(WidgetStyles.get_input_style("primary"))
         performance_layout.addRow(QLabel("Parallel Threads:"), self.threads_spin)
         
-        self.retry_spin = QSpinBox()
-        self.retry_spin.setRange(0, 5)
-        self.retry_spin.setValue(3)
-        self.retry_spin.setStyleSheet(WidgetStyles.get_input_style("primary"))
-        performance_layout.addRow(QLabel("Auto-retry Count:"), self.retry_spin)
-        
         self.timeout_spin = QSpinBox()
         self.timeout_spin.setRange(30, 300)
         self.timeout_spin.setValue(120)
-        self.timeout_spin.setSuffix(" seconds")
         self.timeout_spin.setStyleSheet(WidgetStyles.get_input_style("primary"))
-        performance_layout.addRow(QLabel("API Timeout:"), self.timeout_spin)
+        performance_layout.addRow(QLabel("Request Timeout (seconds):"), self.timeout_spin)
         
         advanced_layout.addWidget(performance_group)
         
@@ -190,7 +183,7 @@ class SettingsDialog(QDialog):
         # Top-k parameter (1 to 100)
         self.top_k_spin = QSpinBox()
         self.top_k_spin.setRange(1, 100)
-        self.top_k_spin.setValue(64)
+        self.top_k_spin.setValue(40)
         self.top_k_spin.setStyleSheet(WidgetStyles.get_input_style("primary"))
         model_params_layout.addRow(QLabel("Top-k:"), self.top_k_spin)
         top_k_help = QLabel("Limits vocabulary to top k tokens (40-64 recommended)")
@@ -284,9 +277,6 @@ class SettingsDialog(QDialog):
         threads = self.settings.value("Threads", 2, type=int)
         self.threads_spin.setValue(threads)
         
-        retry_count = self.settings.value("RetryCount", 3, type=int)
-        self.retry_spin.setValue(retry_count)
-        
         timeout = self.settings.value("Timeout", 120, type=int)
         self.timeout_spin.setValue(timeout)
         
@@ -297,7 +287,7 @@ class SettingsDialog(QDialog):
         top_p = self.settings.value("ModelTopP", 0.95, type=float)
         self.top_p_spin.setValue(top_p)
         
-        top_k = self.settings.value("ModelTopK", 64, type=int)
+        top_k = self.settings.value("ModelTopK", 40, type=int)
         self.top_k_spin.setValue(top_k)
         
         default_output_dir = self.settings.value("DefaultOutputDir", str(Path.home() / "Downloads"))
@@ -318,7 +308,6 @@ class SettingsDialog(QDialog):
         self.settings.setValue("DefaultModel", self.default_model_combo.currentText())
         self.settings.setValue("DefaultStyle", self.default_style_combo.currentData())
         self.settings.setValue("Threads", self.threads_spin.value())
-        self.settings.setValue("RetryCount", self.retry_spin.value())
         self.settings.setValue("Timeout", self.timeout_spin.value())
         
         # Save output directory if set

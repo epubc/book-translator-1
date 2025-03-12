@@ -7,29 +7,61 @@ import string
 from deep_translator import GoogleTranslator
 
 REPLACEMENTS = {
-    "chị rể": "anh rể"
+    "chị rể": "anh rể",
+    "ngoại bà": "bà ngoại",
 }
 
 IGNORE_PREFIX = [
     "https://",
-    "Bạn",
-    "Vì"
+]
+
+IGNORE_WORDS_IN_TRANSLATION = [
+    'BẢN DỊCH',
+    'NỘI DUNG ĐOẠN VĂN'
 ]
 
 
 def preprocess_downloaded_text(text: str) -> str:
-    """Normalizes line spacing in a chapter file and removes lines with ignored prefixes."""
+    """
+    Normalizes line spacing in a chapter file and:
+    1. Removes lines with ignored prefixes
+    2. Removes lines containing Vietnamese text
+    3. Removes all lines after and including any line containing "ps:"
+    """
     # Remove HTML tags
     text = re.sub(r'<[^>]+>', '', text)
 
-    # Filter out lines containing any of the ignored prefixes
-    cleaned_lines = [
-        line for line in text.splitlines()
-        if not any(prefix in line for prefix in IGNORE_PREFIX)
-    ]
+    # Process lines with Vietnamese and "ps:" detection
+    cleaned_lines = []
+    for line in text.splitlines():
+        if "ps" in line.lower():
+            break
+
+        # Skip lines with ignored prefixes
+        if any(prefix in line for prefix in IGNORE_PREFIX):
+            continue
+
+        # Skip lines containing Vietnamese characters
+        if contains_vietnamese(line):
+            continue
+
+        cleaned_lines.append(line)
 
     # Join the remaining lines
     return "\n".join(cleaned_lines)
+
+
+def contains_vietnamese(text: str) -> bool:
+    """
+    Detects if a string contains Vietnamese characters.
+    Vietnamese uses characters in ranges U+00C0-U+00FF (Latin-1 Supplement with diacritical marks)
+    and U+0102-U+0103, U+0110-U+0111, U+0128-U+0129, U+0168-U+0169, U+01A0-U+01A3, U+01AF-U+01B0, U+1EA0-U+1EF9 (Vietnamese-specific)
+    """
+    # Check for Vietnamese-specific Unicode character ranges
+    vietnamese_pattern = re.compile(
+        r'[àáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ]|[ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝ]|[ăâđêôơưĂÂĐÊÔƠƯ]')
+    return bool(vietnamese_pattern.search(text))
+
 
 
 def detect_untranslated_chinese(text: str) -> Tuple[bool, float]:
@@ -131,6 +163,16 @@ def normalize_translation(translation_content: str) -> str:
         stripped_line = line.strip()
         if not stripped_line:
             continue  # Skip empty lines
+
+        has_ignore_words = False
+        for word in IGNORE_WORDS_IN_TRANSLATION:
+            if word in stripped_line:
+                has_ignore_words = True
+                break
+
+        if has_ignore_words:
+            continue
+
         if all(c == '*' for c in stripped_line):
             normalized_lines.append(stripped_line)
             continue
@@ -208,10 +250,10 @@ def remove_underscore(text: str) -> str:
 
 
 
-def validate_translation_quality(text: str, retry_count: int) -> None:
+def validate_translation_quality(text: str) -> None:
     """Validate translated text contains minimal Chinese characters."""
     has_chinese, ratio = detect_untranslated_chinese(text)
-    if has_chinese and (ratio > 0.05 or retry_count < 3):
+    if has_chinese and ratio > 0.5:
         raise ValueError(f"Excessive Chinese characters ({ratio:.2f}%)")
 
 
@@ -229,13 +271,59 @@ def translate_long_text(text: str, src: str, dest: str, chunk_size: int = 1024) 
     return "\n".join(translated_chunks)
 
 
-def preprocess_raw_text(text: str, retry_count: int) -> str:
-    if retry_count < 5:
-        return text
-    text = remove_underscore(text)
-    text = translate_long_text(text, src="zh-CN", dest="en", chunk_size=1024)
-    return add_underscore(text, is_chinese=False)
 
 def normalize_unicode_text(text: str) -> str:
-    normalized = unicodedata.normalize('NFD', text)
-    return ''.join(c for c in normalized if not unicodedata.combining(c)).casefold()
+    """
+    Normalizes Unicode text to Normalization Form Canonical Composition (NFC).
+    """
+    return unicodedata.normalize('NFC', text)
+
+def extract_chinese_words_from_text(text: str) -> List[str]:
+    """
+    Extracts all Chinese words or phrases from the given text.
+    
+    Args:
+        text: The text to extract Chinese words from.
+        
+    Returns:
+        A list of all Chinese words or phrases found in the text.
+    """
+    # Regular expression to find consecutive Chinese characters
+    chinese_word_pattern = re.compile(r'[\u4e00-\u9fff]+')
+    
+    # Find all matches in the text
+    chinese_words = chinese_word_pattern.findall(text)
+    
+    return chinese_words
+
+def replace_chinese_words_with_vietnamese(text: str, chinese_vietnamese_map: dict[str, str]) -> str:
+    """
+    Replaces Chinese words in text with their Vietnamese translations.
+    
+    Processes the mapping from longest keys to shortest to avoid partial replacements.
+    
+    Args:
+        text: The text containing Chinese words to be replaced
+        chinese_vietnamese_map: Dictionary mapping Chinese words to Vietnamese translations
+        
+    Returns:
+        Text with Chinese words replaced by their Vietnamese translations
+    """
+    if not text or not chinese_vietnamese_map:
+        return text
+
+    # Sort dictionary keys by length (longest first) to avoid partial replacements
+    sorted_keys = sorted(chinese_vietnamese_map.keys(), key=len, reverse=True)
+
+    for chinese_word in sorted_keys:
+        vietnamese_translation = chinese_vietnamese_map.get(chinese_word)
+        if vietnamese_translation:
+            # Add spaces around the Vietnamese translation
+            padded_translation = f" {vietnamese_translation} "
+            text = text.replace(chinese_word, padded_translation)
+
+    text = re.sub(r' +', ' ', text)
+    text = text.strip()
+
+
+    return text
