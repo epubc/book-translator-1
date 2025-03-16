@@ -138,7 +138,6 @@ class Translator:
             ]
             futures.extend(batch_futures)
 
-            # Update batch tracking
             progress_data.update({
                 "last_batch_time": time.time(),
                 "last_batch_size": len(batch)
@@ -312,7 +311,6 @@ class Translator:
     def _mark_translation_failed(self, filename: str, error_message: str, progress_data: Dict, lock: Lock) -> None:
         """Mark a translation as failed and categorize the failure."""
         with lock:
-            # Initialize failed_translations dict if it doesn't exist
             if "failed_translations" not in progress_data:
                 progress_data["failed_translations"] = {}
             
@@ -330,7 +328,7 @@ class Translator:
                 "error": error_message,
                 "failure_type": failure_type,
                 "timestamp": time.time(),
-                "retried": False  # Initialize with retried=False
+                "retried": True if filename in progress_data["failed_translations"] else False,
             }
             
             # Save a marker file in translation_responses directory

@@ -99,7 +99,7 @@ class WebTranslationDialog(QDialog):
 
         # Model selection (unchanged)
         self.model_combo = QComboBox()
-        self.model_combo.addItems(["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.0-pro-exp-02-05"])
+        self.model_combo.addItems(["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash-thinking", "gemini-2.0-pro"])
         self.model_combo.setMinimumHeight(30)
         self.model_combo.setMinimumWidth(200)
         self.model_combo.setStyleSheet(WidgetStyles.get_combo_box_style("primary"))

@@ -40,7 +40,8 @@ DEFAULT_MODEL_CONFIG = ModelConfig("gemini-2.0-pro-exp-02-05", 2, DEFAULT_GENERA
 MODEL_CONFIGS = {
     "gemini-2.0-flash": ModelConfig("gemini-2.0-flash", 15, DEFAULT_GENERATION_CONFIG, SAFETY_SETTINGS),
     "gemini-2.0-flash-lite": ModelConfig("gemini-2.0-flash-lite", 15, DEFAULT_GENERATION_CONFIG, SAFETY_SETTINGS),
-    "gemini-2.0-pro-exp-02-05": ModelConfig("gemini-2.0-pro-exp-02-05", 2, DEFAULT_GENERATION_CONFIG, SAFETY_SETTINGS),
+    "gemini-2.0-pro": ModelConfig("gemini-2.0-pro-exp-02-05", 2, DEFAULT_GENERATION_CONFIG, SAFETY_SETTINGS),
+    "gemini-2.0-flash-thinking": ModelConfig("gemini-2.0-flash-thinking-exp-01-21", 10, DEFAULT_GENERATION_CONFIG, SAFETY_SETTINGS),
 
 }
 

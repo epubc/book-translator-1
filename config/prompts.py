@@ -19,6 +19,8 @@ Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại T
 - **Những cụm từ / thành ngữ Hán Việt thường được dùng trong các bản dịch truyện Tiên Hiệp, Huyền Huyễn thì giữ nguyên**, ví dụ: "linh khí", "nguyên thần", "đạo tâm", "tâm ma", "phi thăng",...
 - **Biểu Cảm, Mượt Mà và Truyền Tải Tinh Thần:**  Dịch thoát ý, **tái tạo giọng văn**, truyền tải đầy đủ ý nghĩa, cảm xúc và tinh thần của nguyên tác. Câu văn Tiếng Việt mượt mà, tự nhiên, dễ đọc.
 - **Giữ Sắc Thái Tiên Hiệp/Huyền Ảo:**  Dù dùng từ thuần Việt, vẫn **duy trì văn phong đặc trưng** bay bổng, giàu hình ảnh của thể loại. Sử dụng từ ngữ tượng hình, so sánh, ẩn dụ, thành ngữ Hán Việt **phù hợp**, tạo không khí tu tiên, huyền ảo.
+- **Giữ Nguyên Mức Độ Thô Tục, Nhạy Cảm:** Sử dụng những từ ngữ phù hợp, có thể nhạy cảm và thô tục cho bản dịch sao cho giữ nguyên được mức độ thô tục, nhạy cảm của văn bản gốc.
+
 **3. XƯNG HÔ NHẤT QUÁN:**
 - **Cổ Trang:** Sử dụng hệ thống đại từ nhân xưng, đại từ xưng hô cổ trang cho toàn bộ đoạn văn, không sử dụng đại từ nhân xưng hiện đại (ví dụ: anh, em,...).
 - **Đại từ nhân xưng ngôi thứ ba**: Dùng "hắn" là để chỉ một nhân vật nam, "nàng" để chỉ một nhân vật nữ.
@@ -26,6 +28,7 @@ Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại T
 - **Mối quan hệ giữa các nhân vật:** sư đồ, người yêu, mẹ con, chủ tớ, huynh đệ, bằng hữu, đối thủ,...
 - **Địa vị xã hội:** tông chủ, thượng khách, đại nhân, hạ nhân, đầy tớ,..., 
 - **Ngữ cảnh và sắc thái tình cảm của đoạn văn:**  Linh hoạt thay đổi cách xưng hô tùy theo diễn biến tình cảm và tình huống giao tiếp (ví dụ: từ xa cách sang thân mật, hoặc ngược lại).
+- **Đặc Biệt Chú ý:** Đối với các đoạn hội thoại, xác định người nói và người nghe để lựa chọn xưng hô một cách phù hợp, chính xác.
 
 **4. ĐỘ CHÍNH XÁC TUYỆT ĐỐI:**
 - **Không Sót Chữ:** Bản dịch phải hoàn toàn bằng tiếng Việt. Bất kỳ từ, cụm từ, hay ký tự tiếng Trung nào còn sót lại đều khiến bản dịch bị coi là KHÔNG HỢP LỆ.
@@ -85,5 +88,5 @@ NAME_PROMPT = "Danh sách các tên riêng và số lần xuất hiện ở các
 
 WORDS_PROMPT = """
 Hãy dịch những từ tiếng Trung dưới đây sang tiếng Việt, bối cảnh truyện Tiên Hiệp, Huyền Huyễn nhưng ưu tiên từ thuần Việt.
-Trả về kết quả dưới dạng JSON với key là từ tiếng Trung và value là từ tiếng Việt tương ứng, chỉ và chỉ một bản dịch cho mỗi từ, **chỉ viết hoa chữ cái đầu nếu là tên riêng**.
+Trả về kết quả dưới dạng JSON với key là từ tiếng Trung và value là từ tiếng Việt tương ứng, chỉ và chỉ một bản dịch cho mỗi từ, **chỉ viết hoa chữ cái đầu cho tên riêng**.
 """

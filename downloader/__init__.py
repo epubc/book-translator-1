@@ -4,6 +4,7 @@ from downloader.source.eightxsk_selenium import EightXSKSeleniumDownloader
 from downloader.source.leyuedu import LeYueDuDownloader
 from downloader.source.piaotian import PiaotianDownloader
 from downloader.source.quanben import QuanbenDownloader
+from downloader.source.langrenxiaoshuo import LangrenxiaoshuoDownloader
 from downloader.factory import DownloaderFactory
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     'PiaotianDownloader',
     'QuanbenDownloader',
     'DXMWXDownloader',
+    'LangrenxiaoshuoDownloader',
 ]
