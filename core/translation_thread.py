@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, Union
 from PyQt5.QtCore import QThread, pyqtSignal
 
 from logger.logging_utils import configure_logging
-from translator.core import Translator
+from translator.core import TranslationManager
 from translator.file_handler import FileHandler, FileSplitter
 from downloader.factory import DownloaderFactory
 from config.models import get_model_config
@@ -199,7 +199,7 @@ class TranslationThread(QThread):
             end_chapter=end_chapter
         )
 
-        self.translator = Translator(
+        self.translator = TranslationManager(
             model_config=model_config,
             file_handler=self.file_handler
         )
@@ -221,35 +221,35 @@ class TranslationThread(QThread):
         if not self._is_running:
             raise InterruptedError("Translation stopped by user")
 
-        self.translator.process_book_translation(
+        self.translator.translate_book(
             prompt_style=self.params['prompt_style'],
             start_chapter=start_chapter,
             end_chapter=end_chapter
         )
 
-        # Extract Chinese words
-        self.stage_update.emit("Extracting and translating Chinese words...")
+        # Extract Chinese sentences
+        self.stage_update.emit("Extracting and translating Chinese sentences...")
         self.update_progress.emit(90)
         if not self._is_running:
             raise InterruptedError("Translation stopped by user")
 
-        has_chinese, chinese_words_path = self.file_handler.extract_chinese_words_to_file()
-        if chinese_words_path:
-            self.update_log.emit(f"Chinese words extracted, translated, and saved to: {chinese_words_path}")
+        has_chinese, chinese_sentences_path = self.file_handler.extract_chinese_sentences_to_file()
+        if chinese_sentences_path:
+            self.update_log.emit(f"Chinese sentences extracted, translated, and saved to: {chinese_sentences_path}")
         else:
-            self.update_log.emit("No Chinese words were found or extraction failed.")
+            self.update_log.emit("No Chinese sentences were found or extraction failed.")
 
-        # Replace Chinese words with Vietnamese translations in chapters
-        self.stage_update.emit("Replacing Chinese words in chapters...")
+        # Replace Chinese sentences with Vietnamese translations in chapters
+        self.stage_update.emit("Replacing Chinese sentences in chapters...")
         self.update_progress.emit(92)
         if not self._is_running:
             raise InterruptedError("Translation stopped by user")
             
-        processed_count = self.file_handler.replace_chinese_words_in_chapters(has_chinese)
+        processed_count = self.file_handler.replace_chinese_sentences_in_translation_responses(has_chinese)
         if processed_count > 0:
-            self.update_log.emit(f"Replaced Chinese words in {processed_count} chapter files")
+            self.update_log.emit(f"Replaced Chinese sentences in {processed_count} chapter files")
         else:
-            self.update_log.emit("No chapters were processed for Chinese word replacement")
+            self.update_log.emit("No chapters were processed for Chinese sentence replacement")
 
         # Generate EPUB
         self.stage_update.emit("Generating EPUB...")

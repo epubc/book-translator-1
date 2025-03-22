@@ -13,7 +13,7 @@ from translator.text_processing import preprocess_downloaded_text
 class EightXSKDownloader(BaseBookDownloader):
 
     name = "8xsk"
-    request_delay = 0.75
+    request_delay = 1
     source_language = "Chinese"
     enable_book_info_translation = True
 

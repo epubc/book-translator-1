@@ -249,14 +249,6 @@ def remove_underscore(text: str) -> str:
     return "\n".join(normalized_lines)
 
 
-
-def validate_translation_quality(text: str) -> None:
-    """Validate translated text contains minimal Chinese characters."""
-    has_chinese, ratio = detect_untranslated_chinese(text)
-    if has_chinese and ratio > 0.5:
-        raise ValueError(f"Excessive Chinese characters ({ratio:.2f}%)")
-
-
 def translate_long_text(text: str, src: str, dest: str, chunk_size: int = 1024) -> str:
     """
     Splits the input text into chunks, translates each chunk synchronously,
@@ -278,36 +270,43 @@ def normalize_unicode_text(text: str) -> str:
     """
     return unicodedata.normalize('NFC', text)
 
-def extract_chinese_words_from_text(text: str) -> List[str]:
+def extract_chinese_sentences(text: str) -> List[str]:
     """
-    Extracts all Chinese words or phrases from the given text.
+    Extracts complete sentences that contain Chinese characters from the given text.
     
     Args:
-        text: The text to extract Chinese words from.
+        text: The text to extract Chinese sentences from.
         
     Returns:
-        A list of all Chinese words or phrases found in the text.
+        A list of sentences that contain Chinese characters.
     """
-    # Regular expression to find consecutive Chinese characters
-    chinese_word_pattern = re.compile(r'[\u4e00-\u9fff]+')
+    # Regular expression to find Chinese characters
+    chinese_char_pattern = re.compile(r'[\u4e00-\u9fff]')
     
-    # Find all matches in the text
-    chinese_words = chinese_word_pattern.findall(text)
+    # Split text into sentences (handling common sentence endings)
+    sentences = re.split(r'[。！？.!?,]', text)
     
-    return chinese_words
+    # Filter sentences that contain Chinese characters
+    chinese_sentences = []
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if sentence and chinese_char_pattern.search(sentence):
+            chinese_sentences.append(sentence)
+            
+    return chinese_sentences
 
-def replace_chinese_words_with_vietnamese(text: str, chinese_vietnamese_map: dict[str, str]) -> str:
+def replace_chinese_sentences_with_vietnamese(text: str, chinese_vietnamese_map: dict[str, str]) -> str:
     """
-    Replaces Chinese words in text with their Vietnamese translations.
+    Replaces Chinese sentences in text with their Vietnamese translations.
     
     Processes the mapping from longest keys to shortest to avoid partial replacements.
     
     Args:
-        text: The text containing Chinese words to be replaced
-        chinese_vietnamese_map: Dictionary mapping Chinese words to Vietnamese translations
+        text: The text containing Chinese sentences to be replaced
+        chinese_vietnamese_map: Dictionary mapping Chinese sentences to Vietnamese translations
         
     Returns:
-        Text with Chinese words replaced by their Vietnamese translations
+        Text with Chinese sentences replaced by their Vietnamese translations
     """
     if not text or not chinese_vietnamese_map:
         return text
@@ -315,12 +314,12 @@ def replace_chinese_words_with_vietnamese(text: str, chinese_vietnamese_map: dic
     # Sort dictionary keys by length (longest first) to avoid partial replacements
     sorted_keys = sorted(chinese_vietnamese_map.keys(), key=len, reverse=True)
 
-    for chinese_word in sorted_keys:
-        vietnamese_translation = chinese_vietnamese_map.get(chinese_word)
+    for chinese_sentence in sorted_keys:
+        vietnamese_translation = chinese_vietnamese_map.get(chinese_sentence)
         if vietnamese_translation:
             # Add spaces around the Vietnamese translation
             padded_translation = f" {vietnamese_translation} "
-            text = text.replace(chinese_word, padded_translation)
+            text = text.replace(chinese_sentence, padded_translation)
 
     text = re.sub(r' +', ' ', text)
     text = text.strip()

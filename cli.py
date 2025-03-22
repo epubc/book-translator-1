@@ -48,14 +48,14 @@ def main() -> None:
                                             end_chapter=end_chapter)
 
         logging.info("--- Stage 4: Extracting Chinese Words ---")
-        chinese_words_path = file_handler.extract_chinese_words_to_file(book_info.title)
+        chinese_words_path = file_handler.extract_chinese_sentences_to_file()
         if chinese_words_path:
             logging.info(f"Chinese words extracted to: {chinese_words_path}")
         else:
             logging.warning("No Chinese words were extracted.")
 
         logging.info("--- Stage 5: Replacing Chinese Words in Chapters ---")
-        processed_count = file_handler.replace_chinese_words_in_chapters()
+        processed_count = file_handler.replace_chinese_words_in_translation_responses()
         if processed_count > 0:
             logging.info(f"Replaced Chinese words in {processed_count} chapter files")
         else:
