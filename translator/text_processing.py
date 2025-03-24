@@ -284,7 +284,7 @@ def extract_chinese_sentences(text: str) -> List[str]:
     chinese_char_pattern = re.compile(r'[\u4e00-\u9fff]')
     
     # Split text into sentences (handling common sentence endings)
-    sentences = re.split(r'[。！？.!?,]', text)
+    sentences = re.split(r'[。！？.!?,"]', text)
     
     # Filter sentences that contain Chinese characters
     chinese_sentences = []

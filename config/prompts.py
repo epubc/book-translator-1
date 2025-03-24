@@ -88,7 +88,7 @@ NAME_PROMPT = "Danh sách các tên riêng và số lần xuất hiện ở các
 
 WORDS_PROMPT = """
 Hãy đóng vai một dịch giả chuyên nghiệp. Những câu sau đây được dịch từ Tiếng Trung sang Tiếng Việt tuy nhiên chưa được hoàn chỉnh, còn chứa những từ Tiếng Trung chưa được dịch. Hãy giúp tôi dịch lại các câu đó để đảm bảo có một bản dịch bằng Tiếng Việt hoàn chỉnh.
-Trả về kết quả dưới dạng JSON với key là từ câu ban đầu và value là câu được dịch hoàn chỉnh tương ứng.
+Trả về kết quả dưới dạng JSON với key là từ câu ban đầu và value là câu được dịch hoàn chỉnh tương ứng, không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác, giữ nguyên format của câu ban đầu.
 """
 
 INCOMPLETE_HANDLE_PROMPT = """

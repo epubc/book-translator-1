@@ -517,11 +517,11 @@ class FileHandler:
             from concurrent.futures import ThreadPoolExecutor, as_completed
             from translator.text_processing import split_text_into_chunks
             import json
-            from config.models import GEMINI_FLASH_MODEL_CONFIG
+            from config.models import GEMINI_FLASH_LITE_MODEL_CONFIG
             from config.prompts import PromptStyle
 
             # Initialize translator
-            translator = TranslationManager(model_config=GEMINI_FLASH_MODEL_CONFIG)
+            translator = TranslationManager(model_config=GEMINI_FLASH_LITE_MODEL_CONFIG)
             
             # Split the text into chunks
             raw_text = '\n'.join(chinese_sentences)
@@ -535,43 +535,65 @@ class FileHandler:
             
             # Process chunks in parallel
             translated_chunks = []
-            with ThreadPoolExecutor(max_workers=min(len(chunks), GEMINI_FLASH_MODEL_CONFIG.BATCH_SIZE)) as executor:
-                future_to_chunk = {
-                    executor.submit(
-                        translator.translate_text,
-                        text=chunk,
-                        prompt_style=PromptStyle.Words
-                    ): chunk for chunk in chunks
-                }
+            batch_size = GEMINI_FLASH_LITE_MODEL_CONFIG.BATCH_SIZE
+            progress_data = self.load_progress()
+            
+            for i in range(0, len(chunks), batch_size):
+                batch = chunks[i:i + batch_size]
+                logging.info(f"Processing batch {i//batch_size + 1} of {(len(chunks) + batch_size - 1)//batch_size} with {len(batch)} chunks")
                 
-                for future in as_completed(future_to_chunk):
-                    chunk = future_to_chunk[future]
-                    try:
-                        translated_chunk = future.result()
-                        if translated_chunk:
-                            translated_chunks.append(translated_chunk)
-                    except Exception as e:
-                        logging.error(f"Error translating chunk: {str(e)}")
-                        return False, None
+                # Enforce rate limiting between batches
+                last_batch_time = progress_data.get("last_batch_time", 0)
+                elapsed = time.time() - last_batch_time
+                remaining = settings.TRANSLATION_INTERVAL_SECONDS - elapsed
+                
+                if remaining > 0 and (progress_data.get("last_batch_size", 0) + len(chunks[i:])) > batch_size:
+                    logging.info("Rate limiting - sleeping %.2f seconds", remaining)
+                    time.sleep(remaining)
+                
+                with ThreadPoolExecutor(max_workers=len(batch)) as executor:
+                    future_to_chunk = {
+                        executor.submit(
+                            translator.translate_text,
+                            text=chunk,
+                            prompt_style=PromptStyle.Words
+                        ): chunk for chunk in batch
+                    }
+                    
+                    for future in as_completed(future_to_chunk):
+                        try:
+                            translated_chunk = future.result()
+                            if translated_chunk:
+                                translated_chunks.append(translated_chunk)
+                        except Exception as e:
+                            logging.error(f"Error translating chunk: {str(e)}")
+                            return False, None
+                
+                # Update progress data with batch timing
+                progress_data.update({
+                    "last_batch_time": time.time(),
+                    "last_batch_size": len(batch)
+                })
+                self.save_progress(progress_data)
             
             if not translated_chunks:
                 logging.error("No chunks were successfully translated")
                 return False, None
                 
             # Combine translated chunks
-            translated_text = '\n'.join(translated_chunks)
-            translated_text = translated_text.replace("```", "").replace("json", "").strip()
-
-            # Parse and validate JSON
-            try:
-                json_result = json.loads(translated_text)
-            except json.JSONDecodeError:
-                logging.error(f"Failed to parse JSON from translation response: {translated_text}")
-                return False, None
+            result = {}
+            for translated_chunk in translated_chunks:
+                translated_chunk = translated_chunk.replace("```", "").replace("json", "").strip()
+                try:
+                    json_result = json.loads(translated_chunk)
+                except json.JSONDecodeError:
+                    logging.error(f"Failed to parse JSON from translation response: {translated_chunk}")
+                    return False, None
+                result.update(json_result)
 
             # Save to file
             with open(output_filepath, "w", encoding="utf-8") as outfile:
-                json.dump(json_result, outfile, ensure_ascii=False, indent=2)
+                json.dump(result, outfile, ensure_ascii=False, indent=2)
 
             logging.info(f"Chinese sentences extracted and translated to: {output_filepath}")
             return True, output_filepath

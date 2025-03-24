@@ -215,7 +215,7 @@ class TranslationManager:
             batch_index: int
     ) -> List[concurrent.futures.Future]:
         """Submit a batch of tasks for processing."""
-        logging.info("Processing batch %d with %d tasks", batch_index, len(batch))
+        logging.info("Processing batch %d with %d tasks", batch_index+1, len(batch))
         logging.info(f"Tasks in this batch: {[task.filename for task in batch]}")
 
         batch_futures = [
@@ -392,7 +392,6 @@ class TranslationManager:
     ) -> Optional[str]:
         """Execute translation with quality checks."""
         prompt = self._build_translation_prompt(raw_text, additional_info, prompt_style)
-        print(prompt)
         response = self._get_model_response(model, prompt)
         translated_text = response.text.strip()
         if not translated_text:
@@ -648,7 +647,7 @@ class TranslationManager:
             
             has_chinese, ratio = detect_untranslated_chinese(translated_text)
             
-            if not has_chinese or ratio <= 1:
+            if not has_chinese or ratio <= 10:
                 self._handle_translation_success(task, translated_text, progress_data, retry_lock)
                 logging.info(f"Successfully reduced Chinese characters in {task.filename} to {ratio:.2f}%")
             else:
