@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 
 from downloader.base import BaseBookDownloader
 from downloader.factory import DownloaderFactory
-from translator.text_processing import preprocess_downloaded_text
+from text_processing.text_processing import preprocess_downloaded_text
 
 
 @DownloaderFactory.register(domains=["quanben.io", "www.quanben.io"])
@@ -75,14 +75,8 @@ class QuanbenDownloader(BaseBookDownloader):
         if not soup:
             return None
 
-        # First try to find content in the acontent div (original method)
-        content_div = soup.find('div', id='acontent', class_='acontent')
-
-        # If not found, try the new structure (articlebody > content)
-        if not content_div:
-            articlebody = soup.find('div', class_='articlebody')
-            if articlebody:
-                content_div = articlebody.find('div', id='content')
+        article_body = soup.find('div', class_='articlebody')
+        content_div = article_body.find('div', id='content')
 
         if not content_div:
             return None

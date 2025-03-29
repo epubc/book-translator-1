@@ -14,8 +14,8 @@ from httpx_retry import RetryTransport, RetryPolicy
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 
-from config.models import GEMINI_FLASH_MODEL_CONFIG
-from translator.core import TranslationManager, PromptStyle
+from config.models import GEMINI_FLASH_THINKING_MODEL_CONFIG
+from translator.manager import TranslationManager, PromptStyle
 from translator.file_handler import FileHandler
 
 
@@ -82,13 +82,11 @@ class BaseBookDownloader(ABC):
         # Initialize the file handler first
         self.file_handler = FileHandler(
             book_dir=self.book_dir,
-            start_chapter=start_chapter,
-            end_chapter=end_chapter
         )
         
         # Pass the file handler to the translator
         self.translator = TranslationManager(
-            model_config=GEMINI_FLASH_MODEL_CONFIG,
+            model_config=GEMINI_FLASH_THINKING_MODEL_CONFIG,
             file_handler=self.file_handler
         )
 

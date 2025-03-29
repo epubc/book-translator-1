@@ -16,7 +16,7 @@ from gui.source_info_dialog import SourceInfoDialog
 from downloader.factory import DownloaderFactory
 import qtawesome as qta
 from PyQt5.QtCore import QSettings
-from translator.file_handler import FileHandler
+
 
 class WebTranslationDialog(QDialog):
     active_instance = None
@@ -99,7 +99,7 @@ class WebTranslationDialog(QDialog):
 
         # Model selection (unchanged)
         self.model_combo = QComboBox()
-        self.model_combo.addItems(["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash-thinking", "gemini-2.0-pro"])
+        self.model_combo.addItems(["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash-thinking", "gemini-2.5-pro"])
         self.model_combo.setMinimumHeight(30)
         self.model_combo.setMinimumWidth(200)
         self.model_combo.setStyleSheet(WidgetStyles.get_combo_box_style("primary"))
@@ -512,7 +512,7 @@ class WebTranslationDialog(QDialog):
             
             # Create file handler if we found a valid book directory
             if book_dir:
-                file_handler = FileHandler(book_dir, start_chapter, end_chapter)
+                file_handler = FileHandler(book_dir)
         
         if not file_handler:
             # No file handler available

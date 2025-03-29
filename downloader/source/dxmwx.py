@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 
 from downloader.base import BaseBookDownloader
 from downloader.factory import DownloaderFactory
-from translator.text_processing import preprocess_downloaded_text
+from text_processing.text_processing import preprocess_downloaded_text
 
 
 @DownloaderFactory.register(domains=["www.dxmwx.org"])

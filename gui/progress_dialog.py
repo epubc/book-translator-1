@@ -105,8 +105,10 @@ class ShardDetailsDialog(QDialog):
             
             if is_failed:
                 failure_type = failed_translations[shard_num].get("failure_type", "generic")
-                if failure_type == "contains_chinese":
-                    status_text = "Failed: Contains Chinese"
+                if failure_type == "exceeds_chinese":
+                    status_text = "Failed: Excessive Chinese"
+                elif failure_type == "partial_chinese":
+                    status_text = "Failed: Partial Chinese"
                 elif failure_type == "prohibited_content":
                     status_text = "Failed: Prohibited Content"
                 elif failure_type == "copyrighted_content":
@@ -789,11 +791,11 @@ class EnhancedProgressDialog(QDialog):
             chapter_layout_inner.addLayout(shard_info_layout)
 
         # Show error message for incomplete chapters
-        if status == "Incomplete" and "error" in info:
+        if status == "Incomplete" and "failure_description" in info:
             error_layout = QHBoxLayout()
             error_icon = QLabel()
             error_icon.setPixmap(qta.icon("mdi.alert", color="red").pixmap(16, 16))
-            error_text = info["error"]
+            error_text = info.get("failure_description", "Unknown error")
             if len(error_text) > 100:
                 error_text = error_text[:97] + "..."
             error_label = QLabel(error_text)

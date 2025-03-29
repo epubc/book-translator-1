@@ -3,7 +3,6 @@ import unicodedata
 
 import jieba
 from typing import List, Tuple
-import string
 from deep_translator import GoogleTranslator
 
 REPLACEMENTS = {
@@ -71,59 +70,6 @@ def detect_untranslated_chinese(text: str) -> Tuple[bool, float]:
     total_chars = len(text)
     ratio = (len(chinese_chars) / total_chars) * 100 if total_chars > 0 else 0
     return (len(chinese_chars) > 0), ratio
-
-
-def extract_potential_names(words: List[str]) -> List[List[str]]:
-    """Extract sequences of potential name parts (capitalized words)."""
-    potential_names: List[List[str]] = []
-    current_name: List[str] = []
-    for word in words:
-        if is_potential_name_part(word):
-            current_name.append(word)
-        else:
-            if current_name:
-                potential_names.append(current_name)
-                current_name = []
-    if current_name:
-        potential_names.append(current_name)
-    return potential_names
-
-
-def is_potential_name_part(word: str) -> bool:
-    """Check if a word could be part of a name (Capitalized, alphabetic)."""
-    return word[0].isalpha() and word[0].isupper() if word else False
-
-
-def clean_name_string(name_joined: str) -> str:
-    """Remove punctuation and special chars from name strings for consistency."""
-    allowed_punct = "-'"
-    punct_to_remove = ''.join([p for p in string.punctuation if p not in allowed_punct])
-    return name_joined.translate(str.maketrans('', '', punct_to_remove)).strip()
-
-
-def is_valid_name(name: List[str]) -> bool:
-    """Validate name length and basic punctuation rules."""
-    if not (2 <= len(name) <= 4):
-        return False
-    name_joined = "".join(name)
-    cleaned_name = clean_name_string(name_joined)
-    if cleaned_name != name_joined.translate(str.maketrans('', '', string.punctuation)):
-        return False
-    return True
-
-
-def get_unique_names_from_text(text: str) -> dict[str, int]:
-    """Extract unique names, count occurrences, return dict."""
-    name_counts: dict[str, int] = {}
-    words = text.split()
-    potential_names_list = extract_potential_names(words)
-
-    for name_parts in potential_names_list:
-        if is_valid_name(name_parts):
-            cleaned_name = clean_name_string(" ".join(name_parts))
-            name_counts[cleaned_name] = name_counts.get(cleaned_name, 0) + 1
-    return name_counts
-
 
 
 def split_text_into_chunks(text: str, chunk_size: int) -> List[str]:
@@ -264,12 +210,12 @@ def translate_long_text(text: str, src: str, dest: str, chunk_size: int = 1024) 
     return "\n".join(translated_chunks)
 
 
-
 def normalize_unicode_text(text: str) -> str:
     """
     Normalizes Unicode text to Normalization Form Canonical Composition (NFC).
     """
     return unicodedata.normalize('NFC', text)
+
 
 def extract_chinese_sentences(text: str) -> List[str]:
     """
@@ -296,34 +242,29 @@ def extract_chinese_sentences(text: str) -> List[str]:
             
     return chinese_sentences
 
-def replace_chinese_sentences_with_vietnamese(text: str, chinese_vietnamese_map: dict[str, str]) -> str:
+
+def replace_text_segments(text: str, replacement_map: dict[str, str]) -> str:
     """
-    Replaces Chinese sentences in text with their Vietnamese translations.
-    
+    Replaces segments in text with their mapped replacements.
+
     Processes the mapping from longest keys to shortest to avoid partial replacements.
-    
+
     Args:
-        text: The text containing Chinese sentences to be replaced
-        chinese_vietnamese_map: Dictionary mapping Chinese sentences to Vietnamese translations
-        
+        text: The original text containing segments to be replaced
+        replacement_map: Dictionary mapping original segments to their replacements
+
     Returns:
-        Text with Chinese sentences replaced by their Vietnamese translations
+        Text with segments replaced by their mapped values
     """
-    if not text or not chinese_vietnamese_map:
+    if not text or not replacement_map:
         return text
 
     # Sort dictionary keys by length (longest first) to avoid partial replacements
-    sorted_keys = sorted(chinese_vietnamese_map.keys(), key=len, reverse=True)
+    sorted_keys = sorted(replacement_map.keys(), key=len, reverse=True)
 
-    for chinese_sentence in sorted_keys:
-        vietnamese_translation = chinese_vietnamese_map.get(chinese_sentence)
-        if vietnamese_translation:
-            # Add spaces around the Vietnamese translation
-            padded_translation = f" {vietnamese_translation} "
-            text = text.replace(chinese_sentence, padded_translation)
-
-    text = re.sub(r' +', ' ', text)
-    text = text.strip()
-
+    for original_segment in sorted_keys:
+        replacement = replacement_map.get(original_segment)
+        if replacement:
+            text = text.replace(original_segment, replacement)
 
     return text

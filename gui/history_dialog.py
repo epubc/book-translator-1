@@ -6,7 +6,7 @@ from core.history_manager import HistoryManager
 from gui.ui_styles import ButtonStyles
 from gui.web_translation_dialog import WebTranslationDialog
 from gui.file_translation_dialog import FileTranslationDialog
-from translator.text_processing import normalize_unicode_text
+from text_processing.text_processing import normalize_unicode_text
 
 
 class TranslationHistoryDialog(QDialog):

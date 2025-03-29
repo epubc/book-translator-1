@@ -1,8 +1,6 @@
 import re
 from typing import Optional
 
-
-
 def is_in_chapter_range(
     filename: str,
     start: Optional[int],
@@ -11,7 +9,7 @@ def is_in_chapter_range(
     """Check if file belongs to specified chapter range."""
     chapter_num = extract_chapter_number(filename)
     if chapter_num is None:
-        return True  # Include files without chapter numbers
+        return True
 
     lower_bound = start if start is not None else float('-inf')
     upper_bound = end if end is not None else float('inf')
@@ -29,6 +27,5 @@ def sanitize_path_name(name: str) -> str:
     invalid_chars = '<>:"/\\|?*'
     for char in invalid_chars:
         name = name.replace(char, '_')
-    # Truncate to avoid excessively long names
     max_length = 100
     return name.strip()[:max_length]

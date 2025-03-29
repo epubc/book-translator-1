@@ -4,7 +4,7 @@ import logging
 from config.models import get_model_config
 from downloader.factory import *
 from translator.file_handler import FileHandler
-from translator.core import Translator
+from translator.manager import TranslationManager
 from logger import logging_utils
 
 
@@ -32,8 +32,8 @@ def main() -> None:
         logging_utils.configure_logging(Path(book_dir))
         logging.info(f"Processing book: '{book_info.title}' with ID: {book_info.id}")
 
-        file_handler = FileHandler(book_dir=book_dir, start_chapter=start_chapter, end_chapter=end_chapter)
-        translator = Translator(model_config=model_config, file_handler=file_handler)
+        file_handler = FileHandler(book_dir=book_dir)
+        translator = TranslationManager(model_config=model_config, file_handler=file_handler)
 
         logging.info(f"Starting book processing: '{book_info.title}' in {book_dir}")
 
@@ -44,7 +44,7 @@ def main() -> None:
         file_handler.create_prompt_files_from_chapters()
 
         logging.info("--- Stage 3: Translating Prompts ---")
-        translator.process_book_translation(prompt_style=args.prompt_style, start_chapter=start_chapter,
+        translator.translate_book(prompt_style=args.prompt_style, start_chapter=start_chapter,
                                             end_chapter=end_chapter)
 
         logging.info("--- Stage 4: Extracting Chinese Words ---")
@@ -55,7 +55,7 @@ def main() -> None:
             logging.warning("No Chinese words were extracted.")
 
         logging.info("--- Stage 5: Replacing Chinese Words in Chapters ---")
-        processed_count = file_handler.replace_chinese_words_in_translation_responses()
+        processed_count = file_handler.replace_chinese_sentences_in_translation_responses()
         if processed_count > 0:
             logging.info(f"Replaced Chinese words in {processed_count} chapter files")
         else:

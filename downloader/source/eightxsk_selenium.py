@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 import httpx
 
 from downloader.base import BaseBookDownloader
-from translator.text_processing import preprocess_downloaded_text
+from text_processing.text_processing import preprocess_downloaded_text
 
 
 # @DownloaderFactory.register(domains=["8xsk.cc", "8xbook.cc"])

@@ -8,32 +8,31 @@ class PromptStyle(Enum):
     IncompleteHandle = 5
 
 CHINA_FANTASY_PROMPT = """
-Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại Tiên Hiệp và Huyền Huyễn. Nhiệm vụ của bạn là dịch toàn bộ đoạn văn sau từ tiếng Trung sang tiếng Việt, tuân thủ nghiêm ngặt các yêu cầu sau:
+Bạn là một chuyên gia trong lĩnh vực dịch thuật với hơn 10 năm kinh nghiệm, chuyên dịch truyện thể loại Tiên Hiệp và Huyền Huyễn. Nhiệm vụ của bạn là dịch toàn bộ đoạn văn sau từ tiếng Hán sang tiếng Việt, tuân thủ nghiêm ngặt các yêu cầu sau:
+
 **1. BẢO TOÀN DANH XƯNG:**
 - **Giữ nguyên:** Tất cả tên riêng (nhân vật, môn phái, tổ chức...), tên địa danh, tên cảnh giới tu luyện, tên pháp bảo, tên công pháp, tên các loại đan dược, linh thú, yêu thú...
-- **Định dạng:** Đối với tên riêng, phải trả về bản Tiếng Việt, **không** trả về  dạng Tiếng Trung, dạng Tiếng Anh hay dạng Pinyin.
+- **Định dạng:** Đối với tên riêng, phải trả về bản Tiếng Việt, **không** trả về  dạng Tiếng Hán, dạng Tiếng Anh hay dạng Pinyin.
 
 **2. PHONG CÁCH NGÔN NGỮ:**
-- **Văn phong và từ ngữ:** Xác định độ phổ biến của các cụm từ Hán Việt trước khi lựa chọn bản dịch cho chúng.
-- **Những từ / cụm từ Hán Việt không phổ biến thì dịch sang Tiếng Việt hoàn toàn**.
-- **Những cụm từ / thành ngữ Hán Việt phổ biến trong Tiếng Việt thì giữ nguyên**.
-- **Những cụm từ / thành ngữ Hán Việt thường được dùng trong các bản dịch truyện Tiên Hiệp, Huyền Huyễn thì giữ nguyên**, ví dụ: "linh khí", "nguyên thần", "đạo tâm", "tâm ma", "phi thăng",...
-- **Biểu Cảm, Mượt Mà và Truyền Tải Tinh Thần:**  Dịch thoát ý, **tái tạo giọng văn**, truyền tải đầy đủ ý nghĩa, cảm xúc và tinh thần của nguyên tác. Câu văn Tiếng Việt mượt mà, tự nhiên, dễ đọc.
-- **Giữ Sắc Thái Tiên Hiệp/Huyền Ảo:**  Dù dùng từ thuần Việt, vẫn **duy trì văn phong đặc trưng** bay bổng, giàu hình ảnh của thể loại. Sử dụng từ ngữ tượng hình, so sánh, ẩn dụ, thành ngữ Hán Việt **phù hợp**, tạo không khí tu tiên, huyền ảo.
-- **Giữ Nguyên Mức Độ Thô Tục, Nhạy Cảm:** Sử dụng những từ ngữ phù hợp, có thể nhạy cảm và thô tục cho bản dịch sao cho giữ nguyên được mức độ thô tục, nhạy cảm của văn bản gốc.
+- **Văn phong truyện Tiên Hiệp/Huyền Ảo: Sử dụng văn phong đặc trưng, bay bổng và đậm chất hình ảnh của thể loại truyện Tiên Hiệp, Huyền Huyễn.
+- **Hạn chế sử dụng Hán Việt trong bản dịch:** **Ưu tiên sử dụng từ thuần Việt có ý nghĩa tương để có một bản dịch dễ hiểu**.
+- **Những cụm từ và thành ngữ Hán Việt có độ phổ biến cao trong Tiếng Việt thì giữ nguyên**.
+- **Những từ và cụm từ Hán Việt có độ phổ biến thấp thì dịch sang Tiếng Việt hoàn toàn**.
+- **Câu văn mượt mà, dễ hiểu:** Lựa chọn các câu văn cho bản dịch sao cho mượt mà, tự nhiên, dễ hiểu.
+- **Giữ nguyên mức độ thô tục, nhạy cảm:** Sử dụng những từ ngữ phù hợp, có thể thô tục và nhạy cảm cho bản dịch sao cho giữ nguyên được mức độ thô tục của văn bản gốc.
 
 **3. XƯNG HÔ NHẤT QUÁN:**
-- **Cổ Trang:** Sử dụng hệ thống đại từ nhân xưng, đại từ xưng hô cổ trang cho toàn bộ đoạn văn, không sử dụng đại từ nhân xưng hiện đại (ví dụ: anh, em,...).
+- **Sử dụng đại từ nhân xưng cổ trang:** Sử dụng hệ thống đại từ nhân xưng, đại từ xưng hô cổ trang cho toàn bộ đoạn văn, không sử dụng đại từ nhân xưng hiện đại (ví dụ: anh, em,...).
 - **Đại từ nhân xưng ngôi thứ ba**: Dùng "hắn" là để chỉ một nhân vật nam, "nàng" để chỉ một nhân vật nữ.
-Để lựa chọn xưng hô **phù hợp** (ví dụ: ta - ngươi, ta - ngài, chàng - thiếp, mẹ - con,...) cần xác định rõ các yếu tố sau:
+Để lựa chọn xưng hô chính xác và phù hợp (ví dụ: ta - ngươi, ta - ngài, chàng - thiếp, mẹ - con,...) cần xác định rõ các yếu tố sau:
+- **Đối tượng và giới tính**: Xác định rõ **người nói** và **người nghe** trong các đoạn hội thoại cùng với **giới tính** của họ.
 - **Mối quan hệ giữa các nhân vật:** sư đồ, người yêu, mẹ con, chủ tớ, huynh đệ, bằng hữu, đối thủ,...
 - **Địa vị xã hội:** tông chủ, thượng khách, đại nhân, hạ nhân, đầy tớ,..., 
-- **Ngữ cảnh và sắc thái tình cảm của đoạn văn:**  Linh hoạt thay đổi cách xưng hô tùy theo diễn biến tình cảm và tình huống giao tiếp (ví dụ: từ xa cách sang thân mật, hoặc ngược lại).
-- **Đăc biệt chú ý**: Chú ý về **giới tính** của các nhân vật để sử dụng xưng hô một cách chính xác, tránh nhầm lẫn sử dụng xưng hô của nữ cho nhân vật nam và ngược lại.
+- **Ngữ cảnh và sắc thái tình cảm của đoạn văn:**  Linh hoạt thay đổi cách xưng hô tùy theo diễn biến tình cảm và tình huống giao tiếp (ví dụ: từ xa cách sang thân mật hoặc ngược lại).
 
 **4. ĐỘ CHÍNH XÁC TUYỆT ĐỐI:**
-- **Không Sót Chữ:** Bản dịch phải hoàn toàn bằng tiếng Việt. Bất kỳ từ, cụm từ, hay ký tự tiếng Trung nào còn sót lại đều khiến bản dịch bị coi là KHÔNG HỢP LỆ.
-- **Không Sai Nghĩa**: Đảm bảo bản dịch truyền tải chính xác nội dung và ý nghĩa của nguyên tác.
+- **Không Sót Chữ:** Bản dịch phải hoàn toàn bằng tiếng Việt. Bất kỳ từ, cụm từ, hay ký tự tiếng Hán nào còn sót lại đều khiến bản dịch bị coi là không hợp lệ.
 
 **5. ĐỊNH DẠNG KẾT QUẢ:**
 - **Chỉ Nội Dung:** Chỉ cung cấp phần văn bản đã dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác, không trả về các ký tự lạ.
@@ -83,13 +82,9 @@ Dịch tiêu đề / tên tác giả sau đoạn từ Tiếng Trung sang Tiếng
 Chỉ cung cấp phần văn bản đã dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
 """
 
-
-NAME_PROMPT = "Danh sách các tên riêng và số lần xuất hiện ở các bản dịch trước, dựa vào nó khi dịch các tên riêng:"
-
-
 SENTENCES_PROMPT = """
 Hãy đóng vai một dịch giả chuyên nghiệp. Những câu sau đây được dịch từ Tiếng Trung sang Tiếng Việt tuy nhiên chưa được hoàn chỉnh, còn chứa những từ Tiếng Trung chưa được dịch. Hãy giúp tôi dịch lại các câu đó để đảm bảo có một bản dịch bằng Tiếng Việt hoàn chỉnh.
-Trả về kết quả dưới dạng JSON với key là từ câu ban đầu và value là câu được dịch hoàn chỉnh tương ứng, không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
+Trả về kết quả dưới dạng JSON với key là từ câu ban đầu và value là câu được dịch hoàn chỉnh tương ứng, không chứa bất kỳ từ Tiếng Trung nào còn sót, không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
 """
 
 INCOMPLETE_HANDLE_PROMPT = """

@@ -35,14 +35,14 @@ class ModelConfig:
 
 GEMINI_FLASH_MODEL_CONFIG = ModelConfig("gemini-2.0-flash", 15, get_generation_config(), SAFETY_SETTINGS)
 GEMINI_FLASH_LITE_MODEL_CONFIG = ModelConfig("gemini-2.0-flash-lite", 15, get_generation_config(), SAFETY_SETTINGS)
-GEMINI_PRO_MODEL_CONFIG = ModelConfig("gemini-2.0-pro-exp-02-05", 2, get_generation_config(), SAFETY_SETTINGS)
+GEMINI_PRO_MODEL_CONFIG = ModelConfig("gemini-2.5-pro-exp-03-25", 2, get_generation_config(), SAFETY_SETTINGS)
 GEMINI_FLASH_THINKING_MODEL_CONFIG = ModelConfig("gemini-2.0-flash-thinking-exp-01-21", 10, get_generation_config(), SAFETY_SETTINGS)
 
 
 MODEL_CONFIGS = {
     "gemini-2.0-flash": GEMINI_FLASH_MODEL_CONFIG,
     "gemini-2.0-flash-lite": GEMINI_FLASH_LITE_MODEL_CONFIG,
-    "gemini-2.0-pro": GEMINI_PRO_MODEL_CONFIG,
+    "gemini-2.5-pro": GEMINI_PRO_MODEL_CONFIG,
     "gemini-2.0-flash-thinking": GEMINI_FLASH_THINKING_MODEL_CONFIG,
 }
 

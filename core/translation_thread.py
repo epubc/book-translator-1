@@ -1,17 +1,18 @@
 import logging
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any
 
 from PyQt5.QtCore import QThread, pyqtSignal
 
 from logger.logging_utils import configure_logging
-from translator.core import TranslationManager
-from translator.file_handler import FileHandler, FileSplitter
+from translator.manager import TranslationManager
+from translator.file_handler import FileHandler
+from translator.file_splitter import FileSplitter
 from downloader.factory import DownloaderFactory
 from config.models import get_model_config
 from core.history_manager import HistoryManager
-from translator.text_processing import preprocess_downloaded_text
+from text_processing.text_processing import preprocess_downloaded_text
 
 
 @dataclass
@@ -195,8 +196,6 @@ class TranslationThread(QThread):
         self.stage_update.emit("Preparing file handler...")
         self.file_handler = FileHandler(
             book_dir=book_dir,
-            start_chapter=start_chapter,
-            end_chapter=end_chapter
         )
 
         self.translator = TranslationManager(

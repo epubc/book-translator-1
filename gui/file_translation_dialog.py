@@ -2,8 +2,8 @@ import logging
 from PyQt5 import sip
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
                              QComboBox, QSpinBox, QTextEdit, QProgressBar, QScrollArea, QFrame,
-                             QMessageBox, QFileDialog, QWidget, QFormLayout, QRadioButton, QButtonGroup)
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl, QSettings
+                             QMessageBox, QFileDialog, QWidget, QFormLayout, QRadioButton)
+from PyQt5.QtCore import Qt, pyqtSlot, QUrl, QSettings
 from PyQt5.QtGui import QFont, QTextCursor, QDesktopServices
 import datetime
 from pathlib import Path
@@ -612,7 +612,7 @@ class FileTranslationDialog(QDialog):
             
             # Create file handler if we found a valid book directory
             if book_dir:
-                file_handler = FileHandler(book_dir, start_chapter, end_chapter)
+                file_handler = FileHandler(book_dir)
         
         if not file_handler:
             # No file handler available
