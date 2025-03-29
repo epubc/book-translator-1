@@ -16,6 +16,7 @@ from fake_useragent import UserAgent
 
 from config.models import GEMINI_FLASH_MODEL_CONFIG
 from translator.core import TranslationManager, PromptStyle
+from translator.file_handler import FileHandler
 
 
 exponential_retry = (
@@ -77,7 +78,19 @@ class BaseBookDownloader(ABC):
 
         # Create a persistent HTTP client with retry capabilities
         self.client = self._init_http_client()
-        self.translator = TranslationManager(model_config=GEMINI_FLASH_MODEL_CONFIG)
+        
+        # Initialize the file handler first
+        self.file_handler = FileHandler(
+            book_dir=self.book_dir,
+            start_chapter=start_chapter,
+            end_chapter=end_chapter
+        )
+        
+        # Pass the file handler to the translator
+        self.translator = TranslationManager(
+            model_config=GEMINI_FLASH_MODEL_CONFIG,
+            file_handler=self.file_handler
+        )
 
         # Load state and initialize
         self.state = self._load_state()

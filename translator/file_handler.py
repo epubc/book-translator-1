@@ -70,8 +70,7 @@ class FileHandler:
     def _initiate_progress(self) -> Dict:
         """Initialize a new progress dictionary."""
         return {
-            "last_batch_time": 0,
-            "last_batch_size": 0,
+            "model_rate_limits": {},
             "failed_translations": {}
         }
 
@@ -521,7 +520,10 @@ class FileHandler:
             from config.prompts import PromptStyle
 
             # Initialize translator
-            translator = TranslationManager(model_config=GEMINI_FLASH_LITE_MODEL_CONFIG)
+            translator = TranslationManager(
+                model_config=GEMINI_FLASH_LITE_MODEL_CONFIG,
+                file_handler=self
+            )
             
             # Split the text into chunks
             raw_text = '\n'.join(chinese_sentences)
@@ -556,7 +558,7 @@ class FileHandler:
                         executor.submit(
                             translator.translate_text,
                             text=chunk,
-                            prompt_style=PromptStyle.Words
+                            prompt_style=PromptStyle.Sentences
                         ): chunk for chunk in batch
                     }
                     
@@ -590,6 +592,17 @@ class FileHandler:
                     logging.error(f"Failed to parse JSON from translation response: {translated_chunk}")
                     return False, None
                 result.update(json_result)
+
+            for key, value in result.items():
+                if key and key[0].isupper():
+                    continue
+                words = value.split()
+                if len(words) < 2:
+                    continue
+                first_word, second_word = words[0], words[1]
+                if first_word[0].isupper() and second_word[0].isupper():
+                    continue
+                result[key] = value[0].lower() + value[1:]
 
             # Save to file
             with open(output_filepath, "w", encoding="utf-8") as outfile:

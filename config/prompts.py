@@ -4,7 +4,7 @@ class PromptStyle(Enum):
     Modern = 1
     ChinaFantasy = 2
     BookInfo = 3
-    Words = 4
+    Sentences = 4
     IncompleteHandle = 5
 
 CHINA_FANTASY_PROMPT = """
@@ -29,6 +29,7 @@ Hãy đóng vai một dịch giả chuyên nghiệp, chuyên về thể loại T
 - **Mối quan hệ giữa các nhân vật:** sư đồ, người yêu, mẹ con, chủ tớ, huynh đệ, bằng hữu, đối thủ,...
 - **Địa vị xã hội:** tông chủ, thượng khách, đại nhân, hạ nhân, đầy tớ,..., 
 - **Ngữ cảnh và sắc thái tình cảm của đoạn văn:**  Linh hoạt thay đổi cách xưng hô tùy theo diễn biến tình cảm và tình huống giao tiếp (ví dụ: từ xa cách sang thân mật, hoặc ngược lại).
+- **Đăc biệt chú ý**: Chú ý về **giới tính** của các nhân vật để sử dụng xưng hô một cách chính xác, tránh nhầm lẫn sử dụng xưng hô của nữ cho nhân vật nam và ngược lại.
 
 **4. ĐỘ CHÍNH XÁC TUYỆT ĐỐI:**
 - **Không Sót Chữ:** Bản dịch phải hoàn toàn bằng tiếng Việt. Bất kỳ từ, cụm từ, hay ký tự tiếng Trung nào còn sót lại đều khiến bản dịch bị coi là KHÔNG HỢP LỆ.
@@ -86,9 +87,9 @@ Chỉ cung cấp phần văn bản đã dịch hoàn chỉnh. Không thêm bất
 NAME_PROMPT = "Danh sách các tên riêng và số lần xuất hiện ở các bản dịch trước, dựa vào nó khi dịch các tên riêng:"
 
 
-WORDS_PROMPT = """
+SENTENCES_PROMPT = """
 Hãy đóng vai một dịch giả chuyên nghiệp. Những câu sau đây được dịch từ Tiếng Trung sang Tiếng Việt tuy nhiên chưa được hoàn chỉnh, còn chứa những từ Tiếng Trung chưa được dịch. Hãy giúp tôi dịch lại các câu đó để đảm bảo có một bản dịch bằng Tiếng Việt hoàn chỉnh.
-Trả về kết quả dưới dạng JSON với key là từ câu ban đầu và value là câu được dịch hoàn chỉnh tương ứng, không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác, giữ nguyên format của câu ban đầu.
+Trả về kết quả dưới dạng JSON với key là từ câu ban đầu và value là câu được dịch hoàn chỉnh tương ứng, không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
 """
 
 INCOMPLETE_HANDLE_PROMPT = """

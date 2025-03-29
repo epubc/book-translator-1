@@ -30,6 +30,7 @@ def preprocess_downloaded_text(text: str) -> str:
     """
     # Remove HTML tags
     text = re.sub(r'<[^>]+>', '', text)
+    text = text.replace('＆ｎｂｓｐ；', '')
 
     # Process lines with Vietnamese and "ps:" detection
     cleaned_lines = []
