@@ -1,8 +1,8 @@
 import json
 import logging
-import fcntl
 import os
 import time
+import portalocker  # Cross-platform file locking
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -12,13 +12,11 @@ from logger import logging_utils
 def _safe_read_json(file_path: Path) -> Optional[Dict]:
     """Safely read a JSON file with file locking."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            # Acquire a shared (read) lock
-            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-            try:
-                return json.load(f)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        with portalocker.Lock(file_path, 'r', encoding='utf-8', timeout=10) as f:
+            return json.load(f)
+    except portalocker.LockException:
+        logging.error(f"Could not acquire lock for reading {file_path}")
+        return None
     except Exception as e:
         logging.error(f"Error reading JSON file {file_path}: {e}")
         return None
@@ -29,19 +27,17 @@ def _safe_write_json(file_path: Path, data: Dict) -> Optional[bool]:
     temp_path = file_path.with_suffix('.json.tmp')
     try:
         # Write to temporary file first
-        with open(temp_path, 'w', encoding='utf-8') as f:
-            # Acquire an exclusive (write) lock
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                json.dump(data, f, indent=4)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        with portalocker.Lock(temp_path, 'w', encoding='utf-8', timeout=10) as f:
+            json.dump(data, f, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
 
-        # Atomic rename
-        temp_path.replace(file_path)
+        # Atomic rename - use os.replace for cross-platform atomic replace
+        os.replace(str(temp_path), str(file_path))
         return True
+    except portalocker.LockException:
+        logging.error(f"Could not acquire lock for writing {file_path}")
+        return False
     except Exception as e:
         logging.error(f"Error writing JSON file {file_path}: {e}")
         if temp_path.exists():
@@ -61,9 +57,10 @@ def load_progress_file(progress_file_path: Path) -> Dict:
     """Load and return progress data from progress.json, initialize if not exists."""
     try:
         # Try to read existing progress file
-        data = _safe_read_json(progress_file_path)
-        if data is not None:
-            return data
+        if progress_file_path.exists():
+            data = _safe_read_json(progress_file_path)
+            if data is not None:
+                return data
 
         # If file doesn't exist or is corrupt, initialize new progress
         logging.info("Progress file not found or corrupt, initializing new progress.")
