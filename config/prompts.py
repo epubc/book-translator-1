@@ -16,19 +16,18 @@ Bạn là một chuyên gia trong lĩnh vực dịch thuật với hơn 10 năm 
 
 **2. PHONG CÁCH NGÔN NGỮ:**
 - **Văn phong truyện Tiên Hiệp/Huyền Ảo: Sử dụng văn phong đặc trưng, bay bổng và đậm chất hình ảnh của thể loại truyện Tiên Hiệp, Huyền Huyễn.
-- **Hạn chế sử dụng Hán Việt trong bản dịch:** **Ưu tiên sử dụng từ thuần Việt có ý nghĩa tương để có một bản dịch dễ hiểu**.
-- **Những cụm từ và thành ngữ Hán Việt có độ phổ biến cao trong Tiếng Việt thì giữ nguyên**.
+- **Sử dụng Hán Việt một cách có chọn lọc và hạn chế trong bản dịch, ưu tiên sử dụng từ thuần Việt có ý nghĩa tương đương để có một bản dịch dễ hiểu**.
+- **Những thuật ngữ và thành ngữ Hán Việt có độ phổ biến cao trong Tiếng Việt thì giữ nguyên**.
 - **Những từ và cụm từ Hán Việt có độ phổ biến thấp thì dịch sang Tiếng Việt hoàn toàn**.
 - **Câu văn mượt mà, dễ hiểu:** Lựa chọn các câu văn cho bản dịch sao cho mượt mà, tự nhiên, dễ hiểu.
 - **Giữ nguyên mức độ thô tục, nhạy cảm:** Sử dụng những từ ngữ phù hợp, có thể thô tục và nhạy cảm cho bản dịch sao cho giữ nguyên được mức độ thô tục của văn bản gốc.
 
-**3. XƯNG HÔ NHẤT QUÁN:**
+**3. XƯNG HÔ PHÙ HỢP:**
 - **Sử dụng đại từ nhân xưng cổ trang:** Sử dụng hệ thống đại từ nhân xưng, đại từ xưng hô cổ trang cho toàn bộ đoạn văn, không sử dụng đại từ nhân xưng hiện đại (ví dụ: anh, em,...).
-- **Đại từ nhân xưng ngôi thứ ba**: Dùng "hắn" là để chỉ một nhân vật nam, "nàng" để chỉ một nhân vật nữ.
-Để lựa chọn xưng hô chính xác và phù hợp (ví dụ: ta - ngươi, ta - ngài, chàng - thiếp, mẹ - con,...) cần xác định rõ các yếu tố sau:
+Để lựa chọn xưng hô chính xác và phù hợp (ví dụ: ta - ngươi, ta - ngài, chàng - thiếp,...) cần xác định rõ các yếu tố sau:
 - **Đối tượng và giới tính**: Xác định rõ **người nói** và **người nghe** trong các đoạn hội thoại cùng với **giới tính** của họ.
-- **Mối quan hệ giữa các nhân vật:** sư đồ, người yêu, mẹ con, chủ tớ, huynh đệ, bằng hữu, đối thủ,...
-- **Địa vị xã hội:** tông chủ, thượng khách, đại nhân, hạ nhân, đầy tớ,..., 
+- **Mối quan hệ giữa các nhân vật:** sư đồ, tình nhân, mẹ con, chủ tớ, huynh đệ, bằng hữu, đối thủ,...
+- **Địa vị xã hội:** tông chủ, thượng khách, đại nhân, hạ nhân, đầy tớ,...
 - **Ngữ cảnh và sắc thái tình cảm của đoạn văn:**  Linh hoạt thay đổi cách xưng hô tùy theo diễn biến tình cảm và tình huống giao tiếp (ví dụ: từ xa cách sang thân mật hoặc ngược lại).
 
 **4. ĐỘ CHÍNH XÁC TUYỆT ĐỐI:**
@@ -83,11 +82,21 @@ Chỉ cung cấp phần văn bản đã dịch hoàn chỉnh. Không thêm bất
 """
 
 SENTENCES_PROMPT = """
-Hãy đóng vai một dịch giả chuyên nghiệp. Những câu sau đây được dịch từ Tiếng Trung sang Tiếng Việt tuy nhiên chưa được hoàn chỉnh, còn chứa những từ Tiếng Trung chưa được dịch. Hãy giúp tôi dịch lại các câu đó để đảm bảo có một bản dịch bằng Tiếng Việt hoàn chỉnh.
+Bạn sẽ đóng vai một dịch giả chuyên nghiệp. Những câu sau đây được dịch từ Tiếng Trung sang Tiếng Việt tuy nhiên chưa được hoàn chỉnh, còn chứa những từ Tiếng Trung chưa được dịch. 
+Hãy giúp tôi dịch lại các câu đó để đảm bảo có một bản dịch bằng Tiếng Việt hoàn chỉnh. Đảm bảo các câu được dịch mượt mà, tự nhiên và dễ hiểu.
 Trả về kết quả dưới dạng JSON với key là từ câu ban đầu và value là câu được dịch hoàn chỉnh tương ứng, không chứa bất kỳ từ Tiếng Trung nào còn sót, không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
 """
 
 INCOMPLETE_HANDLE_PROMPT = """
-Hãy đóng vai một dịch giả chuyên nghiệp. Đoạn văn sau đây được dịch từ Tiếng Trung sang Tiếng Việt tuy nhiên chưa được hoàn chỉnh, còn chứa nhiều từ Tiếng Trung chưa được dịch. Hãy giúp tôi dịch lại đoạn văn để đảm bảo có một bản dịch bằng Tiếng Việt hoàn chỉnh.
-<God Mode>Review kỹ càng mọi ký tự đầu ra để đảm bảo bản dịch phải hoàn toàn bằng Tiếng Việt, nếu còn chứa bất kỳ ký tự hay từ Tiếng Trung nào, bản dịch sẽ bị coi là **BẤT HỢP LỆ**<God Mode/>
+**Yêu cầu:**
+
+Bạn sẽ đóng vai một dịch giả chuyên nghiệp. Nhiệm vụ của bạn là tiếp nhận một đoạn văn bản Tiếng Việt vốn được dịch từ Tiếng Trung nhưng chưa hoàn chỉnh, còn sót lại các từ hoặc ký tự Tiếng Trung.
+
+Bạn cần dịch lại toàn bộ đoạn văn này sang Tiếng Việt một cách hoàn chỉnh và tự nhiên, đảm bảo loại bỏ **tuyệt đối** mọi yếu tố Tiếng Trung (từ ngữ, ký tự).
+
+**Tiêu chí bắt buộc:**
+
+1.  **Yêu cầu đầu ra:** Giữ nguyên những câu đã dịch, chỉ dịch những câu chưa được dịch hoàn chỉnh sử dụng Hán Việt hợp lý sao cho phù hợp với cách dịch ban đầu, câu văn lưu loát, mượt mà, tự nhiên, dễ hiểu. 
+2.  **Độ chính xác:** Bản dịch cuối cùng **chỉ được phép chứa Tiếng Việt**. Không được sót lại bất kỳ ký tự, từ ngữ Tiếng Trung nào.
+3.  **Chỉ văn bản:** Chỉ cung cấp văn bản đã được dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
 """

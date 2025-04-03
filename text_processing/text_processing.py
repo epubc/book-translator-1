@@ -1,7 +1,8 @@
 import re
 import unicodedata
 
-import jieba
+import pkuseg
+seg = pkuseg.pkuseg()
 from typing import List, Tuple
 from deep_translator import GoogleTranslator
 
@@ -143,7 +144,7 @@ def normalize_translation(translation_content: str) -> str:
 
     return "\n\n".join(normalized_lines)
 
-def tokenize_chinese_text(text):
+def tokenize_chinese_text(text:str) -> str:
     """
     Tokenizes Chinese text using the jieba library.
 
@@ -155,9 +156,9 @@ def tokenize_chinese_text(text):
     """
     if not isinstance(text, str):
         print("Error: Input must be a string.")
-        return []  # Or raise a TypeError, depending on your needs
+        return []
 
-    seg_list = jieba.cut(text)  # Use jieba.cut for tokenization
+    seg_list = seg.cut(text)
     return list(seg_list)  # Convert the generator to a list
 
 
@@ -268,3 +269,8 @@ def replace_text_segments(text: str, replacement_map: dict[str, str]) -> str:
             text = text.replace(original_segment, replacement)
 
     return text
+
+
+if __name__ == '__main__':
+    text = "xxx"
+    print(tokenize_chinese_text(text))
