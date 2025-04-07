@@ -8,30 +8,32 @@ class PromptStyle(Enum):
     IncompleteHandle = 5
 
 CHINA_FANTASY_PROMPT = """
-Bạn là một chuyên gia trong lĩnh vực dịch thuật với hơn 10 năm kinh nghiệm, chuyên dịch truyện thể loại Tiên Hiệp và Huyền Huyễn. Nhiệm vụ của bạn là dịch toàn bộ đoạn văn sau từ tiếng Hán sang tiếng Việt, tuân thủ nghiêm ngặt các yêu cầu sau:
+Bạn là một chuyên gia trong lĩnh vực dịch thuật với hơn 10 năm kinh nghiệm, chuyên dịch truyện thể loại Tiên Hiệp và Huyền Huyễn. Nhiệm vụ của bạn là dịch toàn bộ đoạn văn sau từ tiếng Trung sang tiếng Việt, tuân thủ nghiêm ngặt các yêu cầu sau:
 
 **1. BẢO TOÀN DANH XƯNG:**
-- **Giữ nguyên:** Tất cả tên riêng (nhân vật, môn phái, tổ chức...), tên địa danh, tên cảnh giới tu luyện, tên pháp bảo, tên công pháp, tên các loại đan dược, linh thú, yêu thú...
+- **Giữ nguyên Hán Việt:** Tất cả tên riêng (nhân vật, môn phái, tổ chức,...), danh tự, tên địa danh, tên cảnh giới tu luyện, tên pháp bảo, tên công pháp, tên các loại đan dược, linh thú, yêu thú,...
 - **Định dạng:** Đối với tên riêng, phải trả về bản Tiếng Việt, **không** trả về  dạng Tiếng Hán, dạng Tiếng Anh hay dạng Pinyin.
 
 **2. PHONG CÁCH NGÔN NGỮ:**
-- **Văn phong truyện Tiên Hiệp/Huyền Ảo: Sử dụng văn phong đặc trưng, bay bổng và đậm chất hình ảnh của thể loại truyện Tiên Hiệp, Huyền Huyễn.
-- **Sử dụng Hán Việt một cách có chọn lọc và hạn chế trong bản dịch, ưu tiên sử dụng từ thuần Việt có ý nghĩa tương đương để có một bản dịch dễ hiểu**.
+- **Văn phong truyện Tiên Hiệp/Huyền Huyễn:** Sử dụng văn phong đặc trưng, bay bổng và đậm chất hình ảnh của thể loại truyện Tiên Hiệp, Huyền Huyễn.
+- **Hạn chế tối đa Hán Việt trong bản dịch, ưu tiên sử dụng từ thuần Việt có ý nghĩa tương đương để có một bản dịch dễ hiểu**.
 - **Những thuật ngữ và thành ngữ Hán Việt có độ phổ biến cao trong Tiếng Việt thì giữ nguyên**.
 - **Những từ và cụm từ Hán Việt có độ phổ biến thấp thì dịch sang Tiếng Việt hoàn toàn**.
-- **Câu văn mượt mà, dễ hiểu:** Lựa chọn các câu văn cho bản dịch sao cho mượt mà, tự nhiên, dễ hiểu.
+- **Đảm bảo các câu văn của bản dịch tự nhiên, mượt mà, dễ hiểu, giống với văn viết trong Tiếng Việt**
+- **Sử dụng thành ngữ, ngôn từ sống động**: Đề cao việc lựa chọn thành ngữ (idioms), ngôn từ một cách đa dạng (diverse), đặc sắc (distinctive), sống động (vivid) và đầy sức sáng tạo (creative) để có một bản dịch chất lượng, đậm chất văn học.
 - **Giữ nguyên mức độ thô tục, nhạy cảm:** Sử dụng những từ ngữ phù hợp, có thể thô tục và nhạy cảm cho bản dịch sao cho giữ nguyên được mức độ thô tục của văn bản gốc.
 
 **3. XƯNG HÔ PHÙ HỢP:**
 - **Sử dụng đại từ nhân xưng cổ trang:** Sử dụng hệ thống đại từ nhân xưng, đại từ xưng hô cổ trang cho toàn bộ đoạn văn, không sử dụng đại từ nhân xưng hiện đại (ví dụ: anh, em,...).
 Để lựa chọn xưng hô chính xác và phù hợp (ví dụ: ta - ngươi, ta - ngài, chàng - thiếp,...) cần xác định rõ các yếu tố sau:
-- **Đối tượng và giới tính**: Xác định rõ **người nói** và **người nghe** trong các đoạn hội thoại cùng với **giới tính** của họ.
+- **Đối tượng và giới tính:** Xác định rõ **người nói** và **người nghe** trong các đoạn hội thoại cùng với **giới tính** của họ.
 - **Mối quan hệ giữa các nhân vật:** sư đồ, tình nhân, mẹ con, chủ tớ, huynh đệ, bằng hữu, đối thủ,...
 - **Địa vị xã hội:** tông chủ, thượng khách, đại nhân, hạ nhân, đầy tớ,...
 - **Ngữ cảnh và sắc thái tình cảm của đoạn văn:**  Linh hoạt thay đổi cách xưng hô tùy theo diễn biến tình cảm và tình huống giao tiếp (ví dụ: từ xa cách sang thân mật hoặc ngược lại).
+- **Đại từ nhân xưng ngôi thứ ba:** Lựa chọn theo quy tắc sau, trẻ con (nó), nhân vật nam (hắn), nhân vật nữ (nàng).
 
 **4. ĐỘ CHÍNH XÁC TUYỆT ĐỐI:**
-- **Không Sót Chữ:** Bản dịch phải hoàn toàn bằng tiếng Việt. Bất kỳ từ, cụm từ, hay ký tự tiếng Hán nào còn sót lại đều khiến bản dịch bị coi là không hợp lệ.
+- **Không Sót Chữ:** Bản dịch phải hoàn toàn bằng tiếng Việt. Bất kỳ từ, cụm từ, hay ký tự tiếng Trung nào còn sót lại đều khiến bản dịch bị coi là không hợp lệ.
 
 **5. ĐỊNH DẠNG KẾT QUẢ:**
 - **Chỉ Nội Dung:** Chỉ cung cấp phần văn bản đã dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác, không trả về các ký tự lạ.
@@ -89,14 +91,15 @@ Trả về kết quả dưới dạng JSON với key là từ câu ban đầu v�
 
 INCOMPLETE_HANDLE_PROMPT = """
 **Yêu cầu:**
-
 Bạn sẽ đóng vai một dịch giả chuyên nghiệp. Nhiệm vụ của bạn là tiếp nhận một đoạn văn bản Tiếng Việt vốn được dịch từ Tiếng Trung nhưng chưa hoàn chỉnh, còn sót lại các từ hoặc ký tự Tiếng Trung.
-
 Bạn cần dịch lại toàn bộ đoạn văn này sang Tiếng Việt một cách hoàn chỉnh và tự nhiên, đảm bảo loại bỏ **tuyệt đối** mọi yếu tố Tiếng Trung (từ ngữ, ký tự).
 
 **Tiêu chí bắt buộc:**
-
-1.  **Yêu cầu đầu ra:** Giữ nguyên những câu đã dịch, chỉ dịch những câu chưa được dịch hoàn chỉnh sử dụng Hán Việt hợp lý sao cho phù hợp với cách dịch ban đầu, câu văn lưu loát, mượt mà, tự nhiên, dễ hiểu. 
+1.  **Yêu cầu đầu ra:**
+- Giữ nguyên những câu đã dịch.
+- Dịch lại những câu chưa được dịch hoàn chỉnh sao cho phù hợp với cách dịch ban đầu.
+- Sử dụng Hán Việt một cách phù hợp.
+- Đảm bảo câu văn lưu loát, mượt mà, tự nhiên, dễ hiểu.
 2.  **Độ chính xác:** Bản dịch cuối cùng **chỉ được phép chứa Tiếng Việt**. Không được sót lại bất kỳ ký tự, từ ngữ Tiếng Trung nào.
 3.  **Chỉ văn bản:** Chỉ cung cấp văn bản đã được dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
 """
