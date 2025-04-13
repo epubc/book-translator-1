@@ -95,11 +95,14 @@ Bạn sẽ đóng vai một dịch giả chuyên nghiệp. Nhiệm vụ của b�
 Bạn cần dịch lại toàn bộ đoạn văn này sang Tiếng Việt một cách hoàn chỉnh và tự nhiên, đảm bảo loại bỏ **tuyệt đối** mọi yếu tố Tiếng Trung (từ ngữ, ký tự).
 
 **Tiêu chí bắt buộc:**
+
 1.  **Yêu cầu đầu ra:**
-- Giữ nguyên những câu đã dịch.
 - Dịch lại những câu chưa được dịch hoàn chỉnh sao cho phù hợp với cách dịch ban đầu.
-- Sử dụng Hán Việt một cách phù hợp.
+- Sử dụng thuật ngữ Hán Việt tinh tế và có chọn lọc, sao cho phù hợp với thể loại truyện nhưng không làm câu văn trở nên khô cứng, khó hiểu.
+- Lựa chọn thành ngữ (idioms), ngôn từ một cách đa dạng (diverse), đặc sắc (distinctive), sống động (vivid) và đầy sức sáng tạo (creative) để có một bản dịch chất lượng, đậm chất văn học.
 - Đảm bảo câu văn lưu loát, mượt mà, tự nhiên, dễ hiểu.
+
 2.  **Độ chính xác:** Bản dịch cuối cùng **chỉ được phép chứa Tiếng Việt**. Không được sót lại bất kỳ ký tự, từ ngữ Tiếng Trung nào.
+
 3.  **Chỉ văn bản:** Chỉ cung cấp văn bản đã được dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
 """

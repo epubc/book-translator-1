@@ -8,12 +8,19 @@ from deep_translator import GoogleTranslator
 
 REPLACEMENTS = {
     "chị rể": "anh rể",
-    "ngoại bà": "bà ngoại",
 }
 
-IGNORE_PREFIX = [
+IGNORE_PREFIXS = [
     "https://",
+    "www",
+    "ps",
+    "&lt"
 ]
+
+IGNORE_LINES = [
+    "."
+]
+
 
 IGNORE_WORDS_IN_TRANSLATION = [
     'BẢN DỊCH',
@@ -21,7 +28,7 @@ IGNORE_WORDS_IN_TRANSLATION = [
 ]
 
 
-def preprocess_downloaded_text(text: str) -> str:
+def preprocess_downloaded_text(raw_text: str) -> str:
     """
     Normalizes line spacing in a chapter file and:
     1. Removes lines with ignored prefixes
@@ -29,23 +36,15 @@ def preprocess_downloaded_text(text: str) -> str:
     3. Removes all lines after and including any line containing "ps:"
     """
     # Remove HTML tags
-    text = re.sub(r'<[^>]+>', '', text)
-    text = text.replace('＆ｎｂｓｐ；', '')
+    cleaned_text = re.sub(r'<[^>]+>', '', raw_text)
+    cleaned_text = cleaned_text.replace('＆ｎｂｓｐ；', '')
 
-    # Process lines with Vietnamese and "ps:" detection
     cleaned_lines = []
-    for line in text.splitlines():
-        if "ps" in line.lower():
-            break
-
-        # Skip lines with ignored prefixes
-        if any(prefix in line for prefix in IGNORE_PREFIX):
+    for line in cleaned_text.splitlines():
+        if line.startswith(tuple(IGNORE_PREFIXS)):
             continue
-
-        # Skip lines containing Vietnamese characters
-        if contains_vietnamese(line):
+        if any(line == ignore_line for ignore_line in IGNORE_LINES):
             continue
-
         cleaned_lines.append(line)
 
     # Join the remaining lines
@@ -270,7 +269,10 @@ def replace_text_segments(text: str, replacement_map: dict[str, str]) -> str:
 
     return text
 
-
-if __name__ == '__main__':
-    text = "xxx"
-    print(tokenize_chinese_text(text))
+def sanitize_path_name(name: str) -> str:
+    """Sanitize the directory name to remove invalid characters."""
+    invalid_chars = '<>:"/\\|?*'
+    for char in invalid_chars:
+        name = name.replace(char, '_')
+    max_length = 100
+    return name.strip()[:max_length]

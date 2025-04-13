@@ -21,11 +21,3 @@ def extract_chapter_number(filename: str) -> Optional[int]:
     match = re.search(r'\d+', filename)
     return int(match.group()) if match else None
 
-
-def sanitize_path_name(name: str) -> str:
-    """Sanitize the directory name to remove invalid characters."""
-    invalid_chars = '<>:"/\\|?*'
-    for char in invalid_chars:
-        name = name.replace(char, '_')
-    max_length = 100
-    return name.strip()[:max_length]

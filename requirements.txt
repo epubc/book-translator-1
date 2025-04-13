@@ -1,6 +1,6 @@
 EbookLib~=0.18
 urllib3~=2.3.0
-protobuf~=5.29.3
+protobuf~=3.20.0
 beautifulsoup4~=4.13.3
 deep-translator~=1.11.4
 undetected-chromedriver~=3.5.5
@@ -14,3 +14,4 @@ qtawesome~=1.4.0
 httpx~=0.28.1
 portalocker~=3.1.1
 pkuseg~=0.0.25
+platformdirs~=4.3.7

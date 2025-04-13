@@ -1,7 +1,6 @@
 import json
 import logging
 import re
-import time
 from threading import Lock
 from pathlib import Path
 from typing import Dict, Optional
@@ -10,11 +9,11 @@ from config import settings
 from epub.generator import EPUBGenerator
 from logger import logging_utils
 from text_processing import text_processing
-from translator.helper import sanitize_path_name
 from file_operations import (
     file_io,
     json_operations,
 )
+from text_processing.text_processing import sanitize_path_name
 from translator import chapter_operations
 
 

@@ -21,15 +21,13 @@ from translator.task import TranslationTask
 class TranslationManager:
     """Manages the translation process for a book, handling different types of translations and retries."""
 
-    def __init__(self, model_config: ModelConfig, file_handler: FileHandler):
+    def __init__(self, model_config: ModelConfig, file_handler: FileHandler = None):
         """Initialize the translation manager.
         
         Args:
             model_config: Configuration for the translation model
             file_handler: Initialized FileHandler instance for this translation
         """
-        if file_handler is None:
-            raise ValueError("FileHandler must be provided when creating a TranslationManager")
             
         self.file_handler = file_handler
         self.model_manager = ModelManager(model_config)
