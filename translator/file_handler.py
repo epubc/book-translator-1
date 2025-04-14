@@ -239,23 +239,20 @@ class FileHandler:
                     return False, None
                 result.update(json_result)
 
+            processed_result = {}
             for key, value in result.items():
                 if key and key[0].isupper():
+                    processed_result[key] = value[:-1] if value.endswith('.') else value
                     continue
                 words = value.split()
-                if len(words) < 2:
+                if len(words) < 2 or (words[0][0].isupper() and words[1][0].isupper()):
                     continue
-                first_word, second_word = words[0], words[1]
-                if first_word[0].isupper() and second_word[0].isupper():
-                    continue
-                value = value[0].lower() + value[1:]
-                if value[-1] == ".":
-                    value = value[:-1]
-                result[key] = value
+                new_val = value[0].lower() + value[1:]
+                processed_result[key] = new_val[:-1] if new_val.endswith('.') else new_val
 
             # Save to file
             with open(output_filepath, "w", encoding="utf-8") as outfile:
-                json.dump(result, outfile, ensure_ascii=False, indent=2)
+                json.dump(processed_result, outfile, ensure_ascii=False, indent=2)
 
             logging.info(f"Chinese sentences extracted and translated to: {output_filepath}")
             return True, output_filepath

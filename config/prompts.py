@@ -84,25 +84,40 @@ Chỉ cung cấp phần văn bản đã dịch hoàn chỉnh. Không thêm bất
 """
 
 SENTENCES_PROMPT = """
-Bạn sẽ đóng vai một dịch giả chuyên nghiệp. Những câu sau đây được dịch từ Tiếng Trung sang Tiếng Việt tuy nhiên chưa được hoàn chỉnh, còn chứa những từ Tiếng Trung chưa được dịch. 
-Hãy giúp tôi dịch lại các câu đó để đảm bảo có một bản dịch bằng Tiếng Việt hoàn chỉnh. Đảm bảo các câu được dịch mượt mà, tự nhiên và dễ hiểu.
-Trả về kết quả dưới dạng JSON với key là từ câu ban đầu và value là câu được dịch hoàn chỉnh tương ứng, không chứa bất kỳ từ Tiếng Trung nào còn sót, không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
+Hãy vào vai một chuyên gia dịch thuật Tiếng Trung sang Tiếng Việt với hơn 10 năm kinh nghiệm.
+Những câu sau đây được dịch từ Tiếng Trung sang Tiếng Việt tuy nhiên chưa được hoàn chỉnh, còn chứa những từ Tiếng Trung chưa được dịch. 
+Nhiệm vụ của bạn là dịch lại các câu đó, đồng thời phải tuân thủ tuyệt đối mọi yêu cầu kèm theo sau:
+
+1.  **Yêu cầu đầu ra:**
+- Tất cả tên riêng (nhân vật, môn phái, tổ chức, địa danh,...), biệt danh, cảnh giới tu luyện, công pháp, pháp bảo, các loại đan dược, linh thú, yêu thú,...
+- Sử dụng thuật ngữ Hán Việt một cách hạn chế và có chọn lọc sao cho phù hợp với thể loại truyện nhưng không làm câu văn trở nên khô cứng, khó hiểu.
+- Lựa chọn thành ngữ (idioms), ngôn từ một cách đa dạng (diverse), đặc sắc (distinctive), sống động (vivid) và đầy sức sáng tạo (creative) để có một bản dịch chất lượng, đậm chất văn học.
+- Đảm bảo câu văn lưu loát, mượt mà, tự nhiên, dễ hiểu.
+
+2.  **Định dạng trả về:** 
+- Trả về kết quả dưới dạng JSON với key là từ câu ban đầu và value là câu được dịch hoàn chỉnh tương ứng.
+- Các câu được dịch không chứa bất kỳ từ Tiếng Trung nào còn sót, không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
+
 """
 
 INCOMPLETE_HANDLE_PROMPT = """
 **Yêu cầu:**
-Bạn sẽ đóng vai một dịch giả chuyên nghiệp. Nhiệm vụ của bạn là tiếp nhận một đoạn văn bản Tiếng Việt vốn được dịch từ Tiếng Trung nhưng chưa hoàn chỉnh, còn sót lại các từ hoặc ký tự Tiếng Trung.
-Bạn cần dịch lại toàn bộ đoạn văn này sang Tiếng Việt một cách hoàn chỉnh và tự nhiên, đảm bảo loại bỏ **tuyệt đối** mọi yếu tố Tiếng Trung (từ ngữ, ký tự).
+Hãy vào vai một chuyên gia dịch thuật Tiếng Trung sang Tiếng Việt với hơn 10 năm kinh nghiệm, am hiểu sâu sắc thể loại truyện Tiên Hiệp và Huyền Huyễn.
+Bạn cần dịch lại toàn bộ đoạn văn này sang Tiếng Việt một cách hoàn chỉnh và tự nhiên, đảm bảo loại bỏ **tuyệt đối** mọi yếu tố Tiếng Trung (từ ngữ, ký tự) còn sót lại trong bản dịch ban đầu.
 
 **Tiêu chí bắt buộc:**
 
 1.  **Yêu cầu đầu ra:**
-- Dịch lại những câu chưa được dịch hoàn chỉnh sao cho phù hợp với cách dịch ban đầu.
-- Sử dụng thuật ngữ Hán Việt tinh tế và có chọn lọc, sao cho phù hợp với thể loại truyện nhưng không làm câu văn trở nên khô cứng, khó hiểu.
+- Không chỉnh sửa các câu đã được dịch hoàn chỉnh.
+- Dịch lại những câu chưa được dịch hoàn chỉnh sao cho **phù hợp với cách dịch ban đầu**.
+- Những thuật ngữ và thành ngữ Hán Việt có độ phổ biến cao trong Tiếng Việt thì giữ nguyên.
+- Những từ và cụm từ Hán Việt có độ phổ biến thấp thì dịch sang Tiếng Việt hoàn toàn để đảm bảo không làm câu văn trở nên khô cứng, khó hiểu.
 - Lựa chọn thành ngữ (idioms), ngôn từ một cách đa dạng (diverse), đặc sắc (distinctive), sống động (vivid) và đầy sức sáng tạo (creative) để có một bản dịch chất lượng, đậm chất văn học.
-- Đảm bảo câu văn lưu loát, mượt mà, tự nhiên, dễ hiểu.
+- Đảm bảo các câu văn được dịch **chính xác**, văn phong tự nhiên, mượt mà, dễ hiểu.
 
-2.  **Độ chính xác:** Bản dịch cuối cùng **chỉ được phép chứa Tiếng Việt**. Không được sót lại bất kỳ ký tự, từ ngữ Tiếng Trung nào.
+2.  **Dịch hoàn chỉnh:** 
+- Bản dịch cuối cùng **chỉ được phép chứa Tiếng Việt**. Không được sót lại bất kỳ ký tự, từ ngữ Tiếng Trung nào.
 
-3.  **Chỉ văn bản:** Chỉ cung cấp văn bản đã được dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
+3.  **Chỉ văn bản:** 
+- Chỉ cung cấp văn bản đã được dịch hoàn chỉnh. Không thêm bất kỳ lời giải thích, chú thích, bình luận, hay thông tin nào khác.
 """
