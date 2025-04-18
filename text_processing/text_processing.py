@@ -128,6 +128,8 @@ def normalize_translation(translation_content: str) -> str:
         processed_line = stripped_line.replace('_', ' ')
         processed_line = re.sub(r'\s{2,}', ' ', processed_line)
         processed_line = processed_line.replace('**', '')
+        processed_line = processed_line.replace('”', '"')
+        processed_line = processed_line.replace('“', '"')
 
         # Apply each replacement rule
         for pattern, replacement in REPLACEMENTS.items():
@@ -231,7 +233,7 @@ def extract_chinese_sentences(text: str) -> List[str]:
     chinese_char_pattern = re.compile(r'[\u4e00-\u9fff]')
     
     # Split text into sentences (handling common sentence endings)
-    sentences = re.split(r'[。！？.!?,"]', text)
+    sentences = text.splitlines()
     
     # Filter sentences that contain Chinese characters
     chinese_sentences = []

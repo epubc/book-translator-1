@@ -88,7 +88,6 @@ def combine_translations(
                             outfile.write(content + "\n")  # Add newline between prompts
                     except Exception as e:
                         logging.error(f"Error reading file {file_path}: {e}")
-                logging.info(f"Combined chapter translation: {chapter_name}")
         except OSError as e:
             logging.error(f"Error writing to {output_path}: {e}")
 

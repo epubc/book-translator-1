@@ -53,7 +53,7 @@ class EightXSKDownloader(BaseBookDownloader):
         if not soup:
             return None
 
-        content_div = soup.find('div', id='ccontent', class_='ccontent')
+        content_div = soup.find('div', id='contentb', class_='contentb')
         if not content_div:
             return None
 

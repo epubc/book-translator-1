@@ -130,7 +130,7 @@ class FileHandler:
                 reasons = []
 
                 # Check 1: Short content (<=1 line)
-                if len(content.splitlines()) <= 1 < len(original_content.splitlines()):
+                if len(content.splitlines()) <= 1 and len(original_content.splitlines()) >= 5:
                     reasons.append("Short content")
 
                 # Check 2: Repeated words (20+ consecutive repeats)
@@ -205,13 +205,10 @@ class FileHandler:
             from concurrent.futures import ThreadPoolExecutor, as_completed
             from text_processing.text_processing import split_text_into_chunks
             import json
-            from config.models import GEMINI_FLASH_LITE_MODEL_CONFIG
+            from config.models import GEMINI_FLASH_MODEL_CONFIG
             from config.prompts import PromptStyle
 
-            translator = TranslationManager(
-                model_config=GEMINI_FLASH_LITE_MODEL_CONFIG,
-                file_handler=self
-            )
+            translator = TranslationManager(model_config=GEMINI_FLASH_MODEL_CONFIG, file_handler=self)
 
             # Split the text into chunks
             raw_text = '\n'.join(chinese_sentences)
@@ -236,23 +233,13 @@ class FileHandler:
                     json_result = json.loads(translated_chunk)
                 except json.JSONDecodeError:
                     logging.error(f"Failed to parse JSON from translation response: {translated_chunk}")
-                    return False, None
+                    continue
                 result.update(json_result)
 
-            processed_result = {}
-            for key, value in result.items():
-                if key and key[0].isupper():
-                    processed_result[key] = value[:-1] if value.endswith('.') else value
-                    continue
-                words = value.split()
-                if len(words) < 2 or (words[0][0].isupper() and words[1][0].isupper()):
-                    continue
-                new_val = value[0].lower() + value[1:]
-                processed_result[key] = new_val[:-1] if new_val.endswith('.') else new_val
 
             # Save to file
             with open(output_filepath, "w", encoding="utf-8") as outfile:
-                json.dump(processed_result, outfile, ensure_ascii=False, indent=2)
+                json.dump(result, outfile, ensure_ascii=False, indent=2)
 
             logging.info(f"Chinese sentences extracted and translated to: {output_filepath}")
             return True, output_filepath

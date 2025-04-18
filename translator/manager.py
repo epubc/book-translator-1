@@ -227,10 +227,6 @@ class TranslationManager:
             return
             
         try:
-            # Mark as retried if necessary
-            if is_retry:
-                self.progress_tracker.mark_task_as_retried(task.filename, progress_data)
-                
             # Select appropriate model
             model = self.model_manager.select_model_for_task(is_retry)
             
@@ -258,13 +254,13 @@ class TranslationManager:
                     # Excessive Chinese characters - create failure marker
                     error_msg = f"ERROR:exceeds_chinese, translation contains chinese with ratio: ({ratio:.2f}%)"
                     logging.error(f"Text contains excessive Chinese characters ({ratio:.2f}%) for {task.filename}")
-                    self.progress_tracker.mark_translation_failed(task.filename, error_msg, progress_data)
+                    self.progress_tracker.mark_translation_failed(task.filename, error_msg, progress_data, is_retry)
             else:
                 # Handle translation error
                 error_msg = "Empty translation result"
                 logging.error(f"Error processing {task.filename}: {error_msg}")
                 if not ("429" in error_msg or "504" in error_msg):
-                    self.progress_tracker.mark_translation_failed(task.filename, error_msg.lower(), progress_data)
+                    self.progress_tracker.mark_translation_failed(task.filename, error_msg.lower(), progress_data, is_retry)
                 
         except Exception as e:
             # Handle exceptions
@@ -286,7 +282,7 @@ class TranslationManager:
             return None
             
         prompt = self.prompt_builder.build_translation_prompt(raw_text, additional_info, prompt_style)
-        
+
         try:
             response = self._get_model_response(model, prompt)
             if response:
@@ -500,12 +496,11 @@ class TranslationManager:
                 logging.info(f"Successfully reduced Chinese characters in {task.filename} to {ratio:.2f}%")
             else:
                 logging.warning(f"Chinese retry failed for {task.filename}, still has {ratio:.2f}% Chinese characters")
-                error_msg = f"exceeds_chinese ({ratio:.2f}%)"
+                error_msg = f"ERROR:exceeds_chinese, translation contains chinese with ratio: ({ratio:.2f}%)"
                 self.progress_tracker.mark_translation_failed(task.filename, error_msg, progress_data)
                 
         except Exception as e:
             logging.error("Error processing Chinese retry for %s: %s", task.filename, str(e))
-            self.progress_tracker.mark_task_as_retried(task.filename, progress_data)
             if not ("429" in str(e) or "504" in str(e)):
                 self.progress_tracker.mark_translation_failed(task.filename, str(e).lower(), progress_data)
 

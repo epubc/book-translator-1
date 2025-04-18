@@ -69,7 +69,8 @@ class ProgressTracker:
             error_message: str,
             progress_data: Dict,
             store_failure_marker: bool = True,
-            failure_type: Optional[str] = None
+            failure_type: Optional[str] = None,
+            retried: bool = False,
     ) -> None:
         """Mark a translation as failed in the progress data."""
         with self.retry_lock:
@@ -81,17 +82,13 @@ class ProgressTracker:
             if failure_type is None:
                 failure_type = self._categorize_failure(error_message)
 
-            # Check if this is an existing failure
-            is_existing = filename in progress_data["failed_translations"]
-            should_retry = is_existing and failure_type != "partial_chinese"
-
             # Create failed task object
             failed_task = FailedTranslationTask(
                 filename=filename,
                 failure_description=error_message,
                 failure_type=failure_type,
                 timestamp=time.time(),
-                retried=should_retry
+                retried=retried,
             )
 
             # Update failure information

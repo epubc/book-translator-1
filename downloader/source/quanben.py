@@ -44,7 +44,7 @@ class QuanbenDownloader(BaseBookDownloader):
 
     name = "quanben"
     bulk_download = True
-    concurrent_downloads = 100
+    concurrent_downloads = 50
     request_delay = 1
     source_language = "Chinese"
     enable_book_info_translation = True
