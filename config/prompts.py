@@ -30,6 +30,7 @@ Nhiệm vụ của bạn là dịch đoạn văn sau, tuân thủ nghiêm ngặt
 - **Mối quan hệ giữa các nhân vật:** sư đồ, tình nhân, mẹ con, chủ tớ, huynh đệ, bằng hữu, đối thủ,...
 - **Địa vị xã hội:** tông chủ, thượng khách, đại nhân, hạ nhân, đầy tớ,...
 - **Ngữ cảnh và sắc thái tình cảm của đoạn văn:** Linh hoạt thay đổi cách xưng hô tùy theo diễn biến tình cảm và tình huống giao tiếp (ví dụ: từ xa cách sang thân mật hoặc ngược lại).
+- **Những xưng hô "con", "chàng", "nàng" nên được sử dụng hạn chế.**
 Đối với đại từ nhân xưng ngôi thứ ba, lựa chọn theo quy tắc sau, nhân vật nam dùng "hắn", nhân vật nữ dùng "nàng", trẻ con dùng "nó".
 
 **4. ĐỊNH DẠNG KẾT QUẢ:**
