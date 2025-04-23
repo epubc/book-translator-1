@@ -120,16 +120,12 @@ def normalize_translation(translation_content: str) -> str:
         if has_ignore_words:
             continue
 
-        if all(c == '*' for c in stripped_line):
-            normalized_lines.append(stripped_line)
-            continue
-
         # Normalize spaces and underscores
         processed_line = stripped_line.replace('_', ' ')
         processed_line = re.sub(r'\s{2,}', ' ', processed_line)
-        processed_line = processed_line.replace('**', '')
         processed_line = processed_line.replace('”', '"')
         processed_line = processed_line.replace('“', '"')
+        processed_line = normalize_character_names(processed_line)
 
         # Apply each replacement rule
         for pattern, replacement in REPLACEMENTS.items():
@@ -144,6 +140,45 @@ def normalize_translation(translation_content: str) -> str:
         normalized_lines.append(processed_line)
 
     return "\n\n".join(normalized_lines)
+
+
+def normalize_character_names(text: str) -> str:
+    def is_name_like_for_markdown(phrase):
+        words = phrase.split()
+        return all(word[0].isupper() for word in words if word)
+
+    def is_name_like_for_quotes(phrase):
+        words = phrase.split()
+        return (
+            len(words) >= 2 and
+            all(word[0].isupper() for word in words if word)
+        )
+
+    def title_case_phrase(phrase):
+        return ' '.join(word.capitalize() for word in phrase.split())
+
+    # Markdown replacer (accepts single capitalized words too)
+    def markdown_replacer(match):
+        content = match.group(1)
+        return title_case_phrase(content) if is_name_like_for_markdown(content) else match.group(0)
+
+    # Handle ***bold+italic***, **bold**, and *italic*
+    text = re.sub(r'\*\*\*(.*?)\*\*\*', markdown_replacer, text)
+    text = re.sub(r'\*\*(.*?)\*\*', markdown_replacer, text)
+    text = re.sub(r'\*(.*?)\*', markdown_replacer, text)
+
+    # Quote replacer (only unwrap multi-word names)
+    def quote_replacer(match):
+        content = match.group(1)
+        return title_case_phrase(content) if is_name_like_for_quotes(content) else match.group(0)
+
+    text = re.sub(r'"(.*?)"', quote_replacer, text)
+
+    # Normalize fully uppercase name phrases
+    caps_pattern = r'\b(?:[A-ZÀ-Ỵ]+(?:\s+[A-ZÀ-Ỵ]+)+)\b'
+    text = re.sub(caps_pattern, lambda m: title_case_phrase(m.group()), text)
+
+    return text
 
 def tokenize_chinese_text(text:str) -> str:
     """

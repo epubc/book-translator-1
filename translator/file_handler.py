@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from config import settings
+from config.models import ModelConfig
 from epub.generator import EPUBGenerator
 from logger import logging_utils
 from text_processing import text_processing
@@ -164,7 +165,7 @@ class FileHandler:
             logging.info("No invalid translation files found.")
         return deleted_count
 
-    def extract_chinese_sentences_to_file(self) -> [bool, Optional[Path]]:
+    def extract_chinese_sentences_to_file(self, model_config: ModelConfig) -> [bool, Optional[Path]]:
         """
         Extract all Chinese sentences from all translation response files and save them to a JSON file.
 
@@ -205,10 +206,9 @@ class FileHandler:
             from concurrent.futures import ThreadPoolExecutor, as_completed
             from text_processing.text_processing import split_text_into_chunks
             import json
-            from config.models import GEMINI_FLASH_MODEL_CONFIG
             from config.prompts import PromptStyle
 
-            translator = TranslationManager(model_config=GEMINI_FLASH_MODEL_CONFIG, file_handler=self)
+            translator = TranslationManager(model_config=model_config, file_handler=self)
 
             # Split the text into chunks
             raw_text = '\n'.join(chinese_sentences)

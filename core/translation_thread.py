@@ -232,7 +232,7 @@ class TranslationThread(QThread):
         if not self._is_running:
             raise InterruptedError("Translation stopped by user")
 
-        has_chinese, chinese_sentences_path = self.file_handler.extract_chinese_sentences_to_file()
+        has_chinese, chinese_sentences_path = self.file_handler.extract_chinese_sentences_to_file(model_config)
         if chinese_sentences_path:
             self.update_log.emit(f"Chinese sentences extracted, translated, and saved to: {chinese_sentences_path}")
         else:
