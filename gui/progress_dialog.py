@@ -530,7 +530,7 @@ class EnhancedProgressDialog(QDialog):
         total_label = self.create_stat_widget("Total Chapters", str(total_chapters), "mdi.book-open-variant")
         completed_label = self.create_stat_widget("Completed", str(completed_chapters), "mdi.check-circle", "green")
         pending_label = self.create_stat_widget("In Progress", str(in_progress_chapters), "mdi.progress-clock", "blue")
-        incomplete_label = self.create_stat_widget("Incomplete", str(incomplete_chapters), "mdi.alert", "orange")
+        incomplete_label = self.create_stat_widget("Incomplete", str(incomplete_chapters), "mdi.alert", "orange", clickable=True)
 
         progress_frame = QFrame()
         progress_layout = QVBoxLayout(progress_frame)
@@ -626,7 +626,7 @@ class EnhancedProgressDialog(QDialog):
 
         self.setLayout(layout)
 
-    def create_stat_widget(self, title, value, icon_name, color=None):
+    def create_stat_widget(self, title, value, icon_name, color=None, clickable=False):
         widget = QFrame()
         layout = QVBoxLayout(widget)
         layout.setSpacing(5)
@@ -643,7 +643,12 @@ class EnhancedProgressDialog(QDialog):
         value_label = QLabel(value)
         value_label.setAlignment(Qt.AlignCenter)
         if color:
-            value_label.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {color};")
+            if clickable:
+                value_label.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {color}; text-decoration: underline;")
+                value_label.setCursor(Qt.PointingHandCursor)
+                value_label.mousePressEvent = lambda event: self.show_incomplete_chapters()
+            else:
+                value_label.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {color};")
         else:
             value_label.setStyleSheet("font-size: 18px; font-weight: bold;")
 
@@ -653,6 +658,73 @@ class EnhancedProgressDialog(QDialog):
 
         return widget
 
+    def show_incomplete_chapters(self):
+        """Show a dialog listing all chapters with Incomplete status"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Incomplete Chapters")
+        dialog.resize(500, 400)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(15, 15, 15, 15)
+
+        # Header
+        header_layout = QHBoxLayout()
+        icon_label = QLabel()
+        icon_label.setPixmap(qta.icon("mdi.alert", color="orange").pixmap(24, 24))
+        header_label = QLabel("<h2>Incomplete Chapters</h2>")
+        header_layout.addWidget(icon_label)
+        header_layout.addWidget(header_label)
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
+
+        # Table of incomplete chapters
+        table = QTableWidget()
+        table.setColumnCount(3)
+        table.setHorizontalHeaderLabels(["Chapter", "Status", "Details"])
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        # Populate table with incomplete chapters
+        incomplete_chapters = [(chapter, info) for chapter, info in self.chapter_status.items() 
+                              if info.get("status") == "Incomplete"]
+        table.setRowCount(len(incomplete_chapters))
+
+        for row, (chapter, info) in enumerate(incomplete_chapters):
+            # Chapter name
+            chapter_item = QTableWidgetItem(chapter)
+            chapter_item.setTextAlignment(Qt.AlignCenter)
+            table.setItem(row, 0, chapter_item)
+
+            # Status
+            translated_shards = info.get("translated_shards", 0)
+            failed_shards = info.get("failed_shards", 0)
+            total_shards = info.get("total_shards", 0)
+            status_text = f"{translated_shards} OK, {failed_shards} Failed"
+            status_item = QTableWidgetItem(status_text)
+            status_item.setForeground(Qt.darkYellow)
+            status_item.setTextAlignment(Qt.AlignCenter)
+            table.setItem(row, 1, status_item)
+
+            # Details button
+            details_btn = QPushButton("View Details")
+            details_btn.setIcon(qta.icon("mdi.information-outline", color="#4a86e8"))
+            details_btn.setStyleSheet(ButtonStyles.get_secondary_style())
+            details_btn.clicked.connect(lambda checked, ch=chapter: self.show_shard_details(ch))
+            table.setCellWidget(row, 2, details_btn)
+
+        layout.addWidget(table)
+
+        # Close button
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.setIcon(qta.icon("mdi.close", color="#424242"))
+        close_btn.setStyleSheet(ButtonStyles.get_neutral_style())
+        close_btn.clicked.connect(dialog.accept)
+        button_layout.addWidget(close_btn)
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
+
+        dialog.exec_()
     def create_chapter_frame(self, chapter, info):
         chapter_frame = QFrame()
         chapter_frame.setFrameShape(QFrame.StyledPanel)
